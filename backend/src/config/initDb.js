@@ -6,7 +6,8 @@ const { query, pool } = require('./db');
 async function initDb() {
   console.log('Initializing database tables on PostgreSQL (Neon)...');
 
-  const createUsersTableQuery = `
+  const createTablesQuery = `
+    -- Users Table
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
       name VARCHAR(255) NOT NULL,
@@ -15,11 +16,23 @@ async function initDb() {
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
     );
     CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
+
+    -- Projects Table
+    CREATE TABLE IF NOT EXISTS projects (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(255) NOT NULL,
+      description TEXT,
+      status VARCHAR(50) NOT NULL DEFAULT 'planning',
+      owner_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_projects_owner_id ON projects(owner_id);
   `;
 
   try {
-    await query(createUsersTableQuery);
-    console.log('✅ Database initialization completed: `users` table is ready.');
+    await query(createTablesQuery);
+    console.log('✅ Database initialization completed: `users` and `projects` tables are ready.');
     return { success: true };
   } catch (error) {
     console.error('❌ Database initialization failed:', error.message);
