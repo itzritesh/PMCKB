@@ -2,10 +2,19 @@ const { Pool } = require('pg');
 const env = require('./env');
 
 // Configure connection pool options based on available environment variables
+const isCloudOrSslRequired =
+  env.DATABASE_URL &&
+  (env.DATABASE_URL.includes('neon.tech') ||
+   env.DATABASE_URL.includes('sslmode=require') ||
+   env.NODE_ENV === 'production');
+
 const poolConfig = env.DATABASE_URL
   ? {
       connectionString: env.DATABASE_URL,
-      ssl: env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false,
+      ssl: isCloudOrSslRequired ? { rejectUnauthorized: false } : false,
+      max: 20,
+      idleTimeoutMillis: 30000,
+      connectionTimeoutMillis: 10000,
     }
   : {
       host: env.DB_HOST,

@@ -9,7 +9,18 @@ async function runTest() {
   console.log('====================================================');
   console.log('  PostgreSQL Connection Verification Tool');
   console.log('====================================================');
-  console.log(`Target: ${env.DATABASE_URL ? '[DATABASE_URL provided]' : `${env.DB_USER}@${env.DB_HOST}:${env.DB_PORT}/${env.DB_NAME}`}`);
+  let targetDisplay;
+  if (env.DATABASE_URL) {
+    try {
+      const parsed = new URL(env.DATABASE_URL);
+      targetDisplay = `${parsed.username}@${parsed.host}${parsed.pathname}`;
+    } catch {
+      targetDisplay = '[DATABASE_URL provided]';
+    }
+  } else {
+    targetDisplay = `${env.DB_USER}@${env.DB_HOST}:${env.DB_PORT}/${env.DB_NAME}`;
+  }
+  console.log(`Target: ${targetDisplay}`);
   console.log('Attempting connection to PostgreSQL...');
 
   const result = await testDbConnection();
