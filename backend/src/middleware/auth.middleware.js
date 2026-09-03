@@ -18,7 +18,10 @@ const authenticateJwt = (req, res, next) => {
     req.user = decoded;
     next();
   } catch (error) {
-    return sendError(res, 'Invalid or expired authentication token.', 401);
+    if (error.name === 'TokenExpiredError') {
+      return sendError(res, 'Authentication token has expired. Please log in again.', 401);
+    }
+    return sendError(res, 'Invalid authentication token.', 401);
   }
 };
 

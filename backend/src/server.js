@@ -1,6 +1,7 @@
 const app = require('./app');
 const env = require('./config/env');
 const { testDbConnection, pool } = require('./config/db');
+const { initDb } = require('./config/initDb');
 
 const PORT = env.PORT || 5000;
 
@@ -17,6 +18,11 @@ const server = app.listen(PORT, async () => {
   const dbStatus = await testDbConnection();
   if (dbStatus.connected) {
     console.log(`✅ PostgreSQL connected successfully (latency: ${dbStatus.latencyMs}ms)`);
+    try {
+      await initDb();
+    } catch (err) {
+      console.warn('⚠️  Could not run automatic schema initialization:', err.message);
+    }
   } else {
     console.log(`⚠️  PostgreSQL warning: ${dbStatus.message}`);
     console.log(`   Detail: ${dbStatus.error}`);

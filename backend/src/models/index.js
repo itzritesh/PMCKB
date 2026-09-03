@@ -1,5 +1,5 @@
-/**
- * Database Models Directory
- * Models and database table schema definitions will be added here in Phase 2+.
- */
-module.exports = {};
+const UserModel = require('./user.model');
+
+module.exports = {
+  UserModel,
+};
