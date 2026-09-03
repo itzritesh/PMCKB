@@ -12,6 +12,7 @@ import {
   UserX,
   FolderGit2,
   ChevronDown,
+  MessageSquare,
 } from 'lucide-react';
 import PriorityBadge from './PriorityBadge';
 import TaskStatusPill from './TaskStatusPill';
@@ -23,6 +24,7 @@ export default function TaskCard({
   onDelete,
   onStatusChange,
   onAssign,
+  onOpenDetails,
   showProject = false,
 }) {
   const [showAssignDropdown, setShowAssignDropdown] = useState(false);
@@ -79,6 +81,13 @@ export default function TaskCard({
           {/* Quick actions */}
           <div className="flex items-center gap-1">
             <button
+              onClick={() => onOpenDetails?.(task)}
+              title="Open Discussion & Comments"
+              className="p-1 rounded-lg text-slate-400 hover:text-indigo-400 hover:bg-slate-800 transition-colors cursor-pointer"
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+            </button>
+            <button
               onClick={() => {
                 const nextStatus =
                   task.status === 'todo'
@@ -124,7 +133,8 @@ export default function TaskCard({
 
         {/* Title */}
         <h4
-          className={`text-sm sm:text-base font-semibold transition-colors mb-1.5 ${
+          onClick={() => onOpenDetails?.(task)}
+          className={`text-sm sm:text-base font-semibold transition-colors mb-1.5 cursor-pointer hover:text-indigo-300 ${
             task.status === 'completed'
               ? 'line-through text-slate-400'
               : 'text-white'
@@ -135,7 +145,10 @@ export default function TaskCard({
 
         {/* Description */}
         {task.description && (
-          <p className="text-xs text-slate-400 line-clamp-2 leading-relaxed mb-4">
+          <p
+            onClick={() => onOpenDetails?.(task)}
+            className="text-xs text-slate-400 line-clamp-2 leading-relaxed mb-4 cursor-pointer hover:text-slate-300"
+          >
             {task.description}
           </p>
         )}

@@ -44,11 +44,23 @@ async function initDb() {
     );
     CREATE INDEX IF NOT EXISTS idx_tasks_project_id ON tasks(project_id);
     CREATE INDEX IF NOT EXISTS idx_tasks_assigned_to ON tasks(assigned_to);
+
+    -- Task Comments Table (Phase 6)
+    CREATE TABLE IF NOT EXISTS task_comments (
+      id SERIAL PRIMARY KEY,
+      task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      comment TEXT NOT NULL,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_task_comments_task_id ON task_comments(task_id);
+    CREATE INDEX IF NOT EXISTS idx_task_comments_user_id ON task_comments(user_id);
   `;
 
   try {
     await query(createTablesQuery);
-    console.log('✅ Database initialization completed: `users`, `projects`, and `tasks` tables are ready.');
+    console.log('✅ Database initialization completed: `users`, `projects`, `tasks`, and `task_comments` tables are ready.');
     return { success: true };
   } catch (error) {
     console.error('❌ Database initialization failed:', error.message);

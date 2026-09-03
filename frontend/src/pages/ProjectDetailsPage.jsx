@@ -28,6 +28,7 @@ import DeleteConfirmModal from '../components/projects/DeleteConfirmModal';
 import TaskCard from '../components/tasks/TaskCard';
 import TaskModal from '../components/tasks/TaskModal';
 import DeleteTaskModal from '../components/tasks/DeleteTaskModal';
+import TaskDetailsModal from '../components/tasks/TaskDetailsModal';
 
 const TASK_STATUS_TABS = [
   { key: 'all', label: 'All Tasks' },
@@ -68,6 +69,7 @@ export default function ProjectDetailsPage() {
   const [deleteTaskModalOpen, setDeleteTaskModalOpen] = useState(false);
   const [deletingTask, setDeletingTask] = useState(null);
   const [isDeletingTask, setIsDeletingTask] = useState(false);
+  const [detailsTask, setDetailsTask] = useState(null);
 
   const fetchProjectData = async () => {
     setLoading(true);
@@ -555,6 +557,7 @@ export default function ProjectDetailsPage() {
                   onDelete={handleOpenDeleteTask}
                   onStatusChange={handleQuickStatusChange}
                   onAssign={handleAssignTask}
+                  onOpenDetails={setDetailsTask}
                 />
               ))}
             </div>
@@ -596,6 +599,17 @@ export default function ProjectDetailsPage() {
         onConfirm={handleConfirmDeleteTask}
         taskTitle={deletingTask?.title || ''}
         loading={isDeletingTask}
+      />
+
+      {/* Task Details & Discussion Modal (Phase 6) */}
+      <TaskDetailsModal
+        isOpen={!!detailsTask}
+        onClose={() => setDetailsTask(null)}
+        task={detailsTask}
+        onEditTask={(t) => {
+          setDetailsTask(null);
+          handleOpenEditTask(t);
+        }}
       />
     </div>
   );

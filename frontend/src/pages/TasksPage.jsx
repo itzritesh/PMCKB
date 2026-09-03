@@ -17,6 +17,7 @@ import { userService } from '../services/userService';
 import TaskCard from '../components/tasks/TaskCard';
 import TaskModal from '../components/tasks/TaskModal';
 import DeleteTaskModal from '../components/tasks/DeleteTaskModal';
+import TaskDetailsModal from '../components/tasks/TaskDetailsModal';
 
 const STATUS_TABS = [
   { key: 'all', label: 'All Tasks' },
@@ -47,6 +48,7 @@ export default function TasksPage() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deletingTask, setDeletingTask] = useState(null);
   const [deleting, setDeleting] = useState(false);
+  const [detailsTask, setDetailsTask] = useState(null);
 
   const fetchData = async () => {
     setLoading(true);
@@ -472,6 +474,7 @@ export default function TasksPage() {
                 onDelete={handleOpenDeleteModal}
                 onStatusChange={handleQuickStatusChange}
                 onAssign={handleAssignTask}
+                onOpenDetails={setDetailsTask}
                 showProject={true}
               />
             ))}
@@ -497,6 +500,17 @@ export default function TasksPage() {
         onConfirm={handleConfirmDelete}
         taskTitle={deletingTask?.title || ''}
         loading={deleting}
+      />
+
+      {/* Task Details & Discussion Modal (Phase 6) */}
+      <TaskDetailsModal
+        isOpen={!!detailsTask}
+        onClose={() => setDetailsTask(null)}
+        task={detailsTask}
+        onEditTask={(t) => {
+          setDetailsTask(null);
+          handleOpenEditModal(t);
+        }}
       />
     </div>
   );

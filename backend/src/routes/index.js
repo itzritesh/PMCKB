@@ -6,6 +6,7 @@ const protectedRoutes = require('./protected.routes');
 const projectRoutes = require('./project.routes');
 const taskRoutes = require('./task.routes');
 const userRoutes = require('./user.routes');
+const commentRoutes = require('./comment.routes');
 
 // Mount routes under /api
 router.use('/health', healthRoutes);
@@ -14,6 +15,7 @@ router.use('/protected', protectedRoutes);
 router.use('/projects', projectRoutes);
 router.use('/tasks', taskRoutes);
 router.use('/users', userRoutes);
+router.use('/comments', commentRoutes);
 
 // Placeholder mount points for future phases:
 // router.use('/meetings', meetingRoutes);
