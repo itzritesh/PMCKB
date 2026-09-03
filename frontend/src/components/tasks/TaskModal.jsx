@@ -24,6 +24,8 @@ export default function TaskModal({
   const [error, setError] = useState(null);
 
   useEffect(() => {
+    if (!isOpen) return;
+
     if (task) {
       setTitle(task.title || '');
       setDescription(task.description || '');
@@ -44,14 +46,15 @@ export default function TaskModal({
     } else {
       setTitle('');
       setDescription('');
-      setProjectId(defaultProjectId || (projects[0]?.id || ''));
+      const initialPid = defaultProjectId || (projects && projects[0]?.id ? projects[0].id : '');
+      setProjectId(initialPid);
       setStatus('todo');
       setPriority('medium');
       setAssignedTo(null);
       setDueDate('');
     }
     setError(null);
-  }, [task, isOpen, defaultProjectId, projects]);
+  }, [task, isOpen]);
 
   if (!isOpen) return null;
 
