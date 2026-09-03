@@ -10,6 +10,7 @@ import ProtectedRoute from '../components/common/ProtectedRoute';
 
 import ProjectsPage from '../pages/ProjectsPage';
 import ProjectDetailsPage from '../pages/ProjectDetailsPage';
+import TasksPage from '../pages/TasksPage';
 
 export default function AppRoutes() {
   const [backendStatus, setBackendStatus] = useState('checking');
@@ -46,11 +47,19 @@ export default function AppRoutes() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/tasks"
+            element={
+              <ProtectedRoute>
+                <TasksPage />
+              </ProtectedRoute>
+            }
+          />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </main>
       <footer className="border-t border-slate-900 bg-slate-950 py-6 text-center text-xs text-slate-500">
-        <p>Projects, Meetings, Calendar, Knowledge Base • Phase 3 Projects Complete</p>
+        <p>Projects, Meetings, Calendar, Knowledge Base • Phase 4 Tasks Complete</p>
       </footer>
     </div>
   );

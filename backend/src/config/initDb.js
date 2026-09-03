@@ -28,11 +28,27 @@ async function initDb() {
       updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
     );
     CREATE INDEX IF NOT EXISTS idx_projects_owner_id ON projects(owner_id);
+
+    -- Tasks Table
+    CREATE TABLE IF NOT EXISTS tasks (
+      id SERIAL PRIMARY KEY,
+      project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+      title VARCHAR(255) NOT NULL,
+      description TEXT,
+      status VARCHAR(50) NOT NULL DEFAULT 'todo',
+      priority VARCHAR(50) NOT NULL DEFAULT 'medium',
+      due_date TIMESTAMP WITH TIME ZONE,
+      assigned_to INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_tasks_project_id ON tasks(project_id);
+    CREATE INDEX IF NOT EXISTS idx_tasks_assigned_to ON tasks(assigned_to);
   `;
 
   try {
     await query(createTablesQuery);
-    console.log('✅ Database initialization completed: `users` and `projects` tables are ready.');
+    console.log('✅ Database initialization completed: `users`, `projects`, and `tasks` tables are ready.');
     return { success: true };
   } catch (error) {
     console.error('❌ Database initialization failed:', error.message);

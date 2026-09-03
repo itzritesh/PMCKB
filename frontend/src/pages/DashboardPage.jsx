@@ -16,11 +16,17 @@ import {
   FolderPlus,
   ArrowUpRight,
   Clock,
+  CheckSquare,
+  AlertTriangle,
+  Plus,
 } from 'lucide-react';
 import { authService } from '../services/authService';
 import { projectService } from '../services/projectService';
+import { taskService } from '../services/taskService';
 import StatusPill from '../components/projects/StatusPill';
 import ProjectModal from '../components/projects/ProjectModal';
+import PriorityBadge from '../components/tasks/PriorityBadge';
+import TaskStatusPill from '../components/tasks/TaskStatusPill';
 
 export default function DashboardPage() {
   const { user, token, logout } = useAuth();
@@ -28,25 +34,34 @@ export default function DashboardPage() {
   const [testing, setTesting] = useState(false);
   const [testError, setTestError] = useState(null);
 
-  // Projects summary state
+  // Projects state
   const [projects, setProjects] = useState([]);
   const [loadingProjects, setLoadingProjects] = useState(true);
   const [modalOpen, setModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const fetchProjects = async () => {
+  // Tasks state
+  const [tasks, setTasks] = useState([]);
+  const [loadingTasks, setLoadingTasks] = useState(true);
+
+  const fetchData = async () => {
     try {
-      const res = await projectService.getProjects();
-      setProjects(res.data.projects || []);
+      const [projRes, tasksRes] = await Promise.all([
+        projectService.getProjects(),
+        taskService.getAllTasks(),
+      ]);
+      setProjects(projRes.data.projects || []);
+      setTasks(tasksRes.data.tasks || []);
     } catch (err) {
-      console.warn('Failed to load dashboard projects:', err);
+      console.warn('Failed to load dashboard data:', err);
     } finally {
       setLoadingProjects(false);
+      setLoadingTasks(false);
     }
   };
 
   useEffect(() => {
-    fetchProjects();
+    fetchData();
   }, []);
 
   const handleTestProtectedApi = async () => {
@@ -80,7 +95,15 @@ export default function DashboardPage() {
   const totalProjects = projects.length;
   const inProgressProjects = projects.filter((p) => p.status === 'in_progress').length;
   const completedProjects = projects.filter((p) => p.status === 'completed').length;
-  const planningProjects = projects.filter((p) => p.status === 'planning').length;
+
+  const totalTasks = tasks.length;
+  const pendingTasks = tasks.filter((t) => t.status !== 'completed').length;
+  const overdueTasks = tasks.filter(
+    (t) =>
+      t.due_date &&
+      new Date(t.due_date).getTime() < Date.now() &&
+      t.status !== 'completed'
+  ).length;
 
   const modules = [
     {
@@ -92,26 +115,26 @@ export default function DashboardPage() {
       link: '/projects',
     },
     {
+      title: 'Tasks Management',
+      icon: CheckSquare,
+      color: 'from-emerald-600 to-teal-600',
+      description: 'Priorities, deadlines, overdue tracking, and deliverables.',
+      badge: 'Active (Phase 4)',
+      link: '/tasks',
+    },
+    {
       title: 'Meetings & Minutes',
       icon: Users,
       color: 'from-purple-600 to-pink-600',
       description: 'Collaborative meeting agendas and assigned action items.',
-      badge: 'Unlocked in Phase 4',
+      badge: 'Unlocked in Phase 5',
       link: '#',
     },
     {
       title: 'Calendar & Scheduling',
       icon: Calendar,
-      color: 'from-emerald-600 to-teal-600',
-      description: 'Team scheduling and unified calendar sync.',
-      badge: 'Unlocked in Phase 5',
-      link: '#',
-    },
-    {
-      title: 'Knowledge Base',
-      icon: BookOpen,
       color: 'from-amber-600 to-orange-600',
-      description: 'Centralized team documentation, search, and wikis.',
+      description: 'Team scheduling and unified calendar sync.',
       badge: 'Unlocked in Phase 6',
       link: '#',
     },
@@ -132,7 +155,7 @@ export default function DashboardPage() {
                 Welcome, {user?.name || 'Authorized User'}!
               </h1>
               <p className="text-sm text-slate-400">
-                You are securely signed in. Your projects are stored in PostgreSQL with complete user isolation.
+                You are securely signed in. Your projects and tasks are stored in PostgreSQL with complete owner isolation.
               </p>
             </div>
 
@@ -155,7 +178,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Project Metrics Row */}
+        {/* Unified Metrics Row (Projects & Tasks) */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           <div className="glass-card rounded-2xl p-5 border border-slate-800">
             <span className="text-xs text-slate-400 block mb-1">Total Projects</span>
@@ -165,88 +188,168 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="glass-card rounded-2xl p-5 border border-slate-800">
-            <span className="text-xs text-slate-400 block mb-1">In Progress</span>
+            <span className="text-xs text-slate-400 block mb-1">Total Tasks</span>
             <div className="flex items-baseline justify-between">
-              <span className="text-2xl sm:text-3xl font-bold text-amber-400">{inProgressProjects}</span>
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-400 animate-pulse" />
+              <span className="text-2xl sm:text-3xl font-bold text-teal-400">{totalTasks}</span>
+              <CheckSquare className="w-5 h-5 text-teal-400" />
             </div>
           </div>
           <div className="glass-card rounded-2xl p-5 border border-slate-800">
-            <span className="text-xs text-slate-400 block mb-1">Planning</span>
+            <span className="text-xs text-slate-400 block mb-1">Pending Deliverables</span>
             <div className="flex items-baseline justify-between">
-              <span className="text-2xl sm:text-3xl font-bold text-blue-400">{planningProjects}</span>
-              <span className="w-2.5 h-2.5 rounded-full bg-blue-400" />
+              <span className="text-2xl sm:text-3xl font-bold text-amber-400">{pendingTasks}</span>
+              <Clock className="w-5 h-5 text-amber-400" />
             </div>
           </div>
           <div className="glass-card rounded-2xl p-5 border border-slate-800">
-            <span className="text-xs text-slate-400 block mb-1">Completed</span>
+            <span className="text-xs text-slate-400 block mb-1">Overdue Tasks</span>
             <div className="flex items-baseline justify-between">
-              <span className="text-2xl sm:text-3xl font-bold text-emerald-400">{completedProjects}</span>
-              <CheckCircle2 className="w-5 h-5 text-emerald-400" />
+              <span className={`text-2xl sm:text-3xl font-bold ${overdueTasks > 0 ? 'text-rose-400 animate-pulse' : 'text-slate-400'}`}>
+                {overdueTasks}
+              </span>
+              <AlertTriangle className={`w-5 h-5 ${overdueTasks > 0 ? 'text-rose-400' : 'text-slate-600'}`} />
             </div>
           </div>
         </div>
 
-        {/* Recent Projects Widget */}
-        <div className="glass-card rounded-3xl p-6 sm:p-8 border border-slate-800 space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
-                <FolderGit2 className="w-5 h-5" />
+        {/* Two-Column Widget: Recent Projects & Upcoming Tasks */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          {/* Recent Projects Widget */}
+          <div className="glass-card rounded-3xl p-6 border border-slate-800 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+                  <FolderGit2 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-white">Recent Projects</h3>
+                  <p className="text-xs text-slate-400">Active project workspaces</p>
+                </div>
               </div>
-              <div>
-                <h3 className="text-base font-semibold text-white">Your Recent Projects</h3>
-                <p className="text-xs text-slate-400">Fast access to your active workspaces</p>
-              </div>
+              <Link
+                to="/projects"
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-indigo-400 hover:text-indigo-300 transition-colors"
+              >
+                <span>View all</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
             </div>
-            <Link
-              to="/projects"
-              className="inline-flex items-center gap-1.5 text-xs font-medium text-indigo-400 hover:text-indigo-300 transition-colors"
-            >
-              <span>View all ({totalProjects})</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
+
+            {projects.length === 0 ? (
+              <div className="p-8 rounded-2xl bg-slate-900/40 border border-slate-800/60 text-center space-y-3">
+                <p className="text-xs text-slate-400">You don't have any projects yet.</p>
+                <button
+                  onClick={() => setModalOpen(true)}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition-colors cursor-pointer"
+                >
+                  <FolderPlus className="w-4 h-4" />
+                  <span>Create First Project</span>
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-3 pt-2">
+                {projects.slice(0, 3).map((project) => (
+                  <Link
+                    key={project.id}
+                    to={`/projects/${project.id}`}
+                    className="p-3.5 rounded-xl bg-slate-900/80 hover:bg-slate-900 border border-slate-800 hover:border-indigo-500/40 transition-all flex items-center justify-between group"
+                  >
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-white group-hover:text-indigo-300 transition-colors">
+                          {project.name}
+                        </span>
+                        <StatusPill status={project.status} />
+                      </div>
+                      <p className="text-xs text-slate-400 line-clamp-1">
+                        {project.description || 'No description provided.'}
+                      </p>
+                    </div>
+                    <ArrowUpRight className="w-4 h-4 text-slate-500 group-hover:text-indigo-400 transition-colors shrink-0 ml-2" />
+                  </Link>
+                ))}
+              </div>
+            )}
           </div>
 
-          {projects.length === 0 ? (
-            <div className="p-8 rounded-2xl bg-slate-900/40 border border-slate-800/60 text-center space-y-3">
-              <p className="text-xs text-slate-400">You don't have any projects yet.</p>
-              <button
-                onClick={() => setModalOpen(true)}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium transition-colors cursor-pointer"
+          {/* Pending Tasks Widget */}
+          <div className="glass-card rounded-3xl p-6 border border-slate-800 space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-teal-500/10 border border-teal-500/20 flex items-center justify-center text-teal-400">
+                  <CheckSquare className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-semibold text-white">Pending Tasks</h3>
+                  <p className="text-xs text-slate-400">Deliverables awaiting completion</p>
+                </div>
+              </div>
+              <Link
+                to="/tasks"
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-teal-400 hover:text-teal-300 transition-colors"
               >
-                <FolderPlus className="w-4 h-4" />
-                <span>Create Your First Project</span>
-              </button>
+                <span>View all ({totalTasks})</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-              {projects.slice(0, 3).map((project) => (
+
+            {tasks.length === 0 ? (
+              <div className="p-8 rounded-2xl bg-slate-900/40 border border-slate-800/60 text-center space-y-3">
+                <p className="text-xs text-slate-400">No tasks created yet.</p>
                 <Link
-                  key={project.id}
-                  to={`/projects/${project.id}`}
-                  className="p-4 rounded-xl bg-slate-900/80 hover:bg-slate-900 border border-slate-800 hover:border-indigo-500/40 transition-all flex flex-col justify-between group"
+                  to="/tasks"
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-500 text-white text-xs font-medium transition-colors"
                 >
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <StatusPill status={project.status} />
-                      <ArrowUpRight className="w-4 h-4 text-slate-500 group-hover:text-indigo-400 transition-colors" />
-                    </div>
-                    <h4 className="text-sm font-semibold text-white group-hover:text-indigo-300 transition-colors line-clamp-1">
-                      {project.name}
-                    </h4>
-                    <p className="text-xs text-slate-400 line-clamp-2">
-                      {project.description || 'No description provided.'}
-                    </p>
-                  </div>
-                  <div className="pt-3 border-t border-slate-800/80 mt-3 flex items-center gap-1 text-[11px] text-slate-500">
-                    <Clock className="w-3 h-3" />
-                    <span>{new Date(project.created_at).toLocaleDateString()}</span>
-                  </div>
+                  <Plus className="w-4 h-4" />
+                  <span>Go to Tasks</span>
                 </Link>
-              ))}
-            </div>
-          )}
+              </div>
+            ) : (
+              <div className="space-y-3 pt-2">
+                {tasks
+                  .filter((t) => t.status !== 'completed')
+                  .slice(0, 3)
+                  .map((task) => {
+                    const isOverdue =
+                      task.due_date &&
+                      new Date(task.due_date).getTime() < Date.now();
+                    return (
+                      <Link
+                        key={task.id}
+                        to={`/projects/${task.project_id}`}
+                        className="p-3.5 rounded-xl bg-slate-900/80 hover:bg-slate-900 border border-slate-800 hover:border-teal-500/40 transition-all flex items-center justify-between group"
+                      >
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium text-white group-hover:text-teal-300 transition-colors">
+                              {task.title}
+                            </span>
+                            <PriorityBadge priority={task.priority} />
+                            {isOverdue && (
+                              <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-500/20 text-rose-400 border border-rose-500/30">
+                                Overdue
+                              </span>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                            <span>Project: {task.project_name || `#${task.project_id}`}</span>
+                            {task.due_date && (
+                              <>
+                                <span>•</span>
+                                <span className={isOverdue ? 'text-rose-400 font-medium' : 'text-slate-400'}>
+                                  Due {new Date(task.due_date).toLocaleDateString()}
+                                </span>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                        <ArrowUpRight className="w-4 h-4 text-slate-500 group-hover:text-teal-400 transition-colors shrink-0 ml-2" />
+                      </Link>
+                    );
+                  })}
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Two-Column Grid: Session Details & Protected API Tester */}
@@ -351,7 +454,7 @@ export default function DashboardPage() {
           </div>
         </div>
 
-        {/* Modules Access Section */}
+        {/* Platform Modules Section */}
         <div className="space-y-4 pt-4">
           <div className="flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-indigo-400" />

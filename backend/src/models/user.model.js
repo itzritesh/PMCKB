@@ -27,6 +27,16 @@ const UserModel = {
   },
 
   /**
+   * Find all registered users (excludes passwords)
+   * @returns {Promise<Array<object>>}
+   */
+  async findAllUsers() {
+    const text = 'SELECT id, name, email, created_at FROM users ORDER BY name ASC';
+    const res = await query(text);
+    return res.rows;
+  },
+
+  /**
    * Create a new user record
    * @param {object} params
    * @param {string} params.name

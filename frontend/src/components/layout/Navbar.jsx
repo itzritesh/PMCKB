@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Layers, Sparkles, User, LogOut, LayoutDashboard, LogIn, UserPlus, FolderGit2 } from 'lucide-react';
+import { Layers, Sparkles, User, LogOut, LayoutDashboard, LogIn, UserPlus, FolderGit2, CheckSquare } from 'lucide-react';
 import StatusBadge from '../common/StatusBadge';
 import { useAuth } from '../../context/AuthContext';
 
@@ -19,7 +19,7 @@ export default function Navbar({ backendStatus = 'checking' }) {
             <div className="flex items-center gap-2">
               <span className="text-base font-bold tracking-tight text-white">PMCKB</span>
               <span className="hidden sm:inline-block px-2 py-0.5 text-[10px] font-semibold tracking-wide uppercase rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                Phase 2 Auth
+                Phase 4 Tasks
               </span>
             </div>
             <p className="text-xs text-slate-400 hidden sm:block">
@@ -61,10 +61,18 @@ export default function Navbar({ backendStatus = 'checking' }) {
 
               <Link
                 to="/projects"
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-200 border border-slate-800 text-xs font-medium transition-colors"
+              >
+                <FolderGit2 className="w-3.5 h-3.5 text-indigo-400" />
+                <span className="hidden sm:inline">Projects</span>
+              </Link>
+
+              <Link
+                to="/tasks"
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-300 border border-indigo-500/30 text-xs font-medium transition-colors"
               >
-                <FolderGit2 className="w-3.5 h-3.5" />
-                <span>Projects</span>
+                <CheckSquare className="w-3.5 h-3.5" />
+                <span>Tasks</span>
               </Link>
 
               <div className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 text-xs text-slate-300">
