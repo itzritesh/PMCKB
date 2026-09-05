@@ -10,8 +10,6 @@ import {
   Clock,
   Edit2,
   Trash2,
-  Check,
-  CornerDownLeft,
   FolderGit2,
   AlertTriangle,
 } from 'lucide-react';
@@ -36,7 +34,7 @@ export default function TaskDetailsModal({
   const [postingComment, setPostingComment] = useState(false);
   const [postError, setPostError] = useState(null);
 
-  // Editing comment state: { id: number, text: string } | null
+  // Editing comment state
   const [editingComment, setEditingComment] = useState(null);
   const [updatingComment, setUpdatingComment] = useState(false);
 
@@ -82,7 +80,6 @@ export default function TaskDetailsModal({
       const res = await commentService.createComment(task.id, newComment.trim());
       setComments((prev) => [...prev, res.data.comment]);
       setNewComment('');
-      // Scroll to bottom
       setTimeout(() => {
         commentsEndRef.current?.scrollIntoView({ behavior: 'smooth' });
       }, 100);
@@ -155,36 +152,36 @@ export default function TaskDetailsModal({
     task.status !== 'completed';
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-950/80 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="glass-card max-w-2xl w-full rounded-3xl border border-slate-800 shadow-2xl relative flex flex-col max-h-[92vh] overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-200">
+      <div className="bg-white max-w-2xl w-full rounded-3xl border border-slate-200 shadow-2xl relative flex flex-col max-h-[92vh] overflow-hidden">
         {/* Header */}
-        <div className="p-6 border-b border-slate-800/80 bg-slate-900/40 shrink-0">
+        <div className="p-6 border-b border-slate-100 bg-slate-50/70 shrink-0">
           <div className="flex items-start justify-between gap-4">
             <div className="space-y-1.5 flex-1 pr-6">
               <div className="flex flex-wrap items-center gap-2">
                 <TaskStatusPill status={task.status} />
                 <PriorityBadge priority={task.priority} />
                 {task.project_name && (
-                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-medium bg-indigo-50 text-indigo-700 border border-indigo-200">
                     <FolderGit2 className="w-3 h-3" />
                     {task.project_name}
                   </span>
                 )}
                 {isOverdue && (
-                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-rose-500/20 text-rose-400 border border-rose-500/30 animate-pulse">
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-rose-50 text-rose-700 border border-rose-200">
                     <AlertTriangle className="w-3 h-3" />
                     Overdue
                   </span>
                 )}
               </div>
-              <h2 className="text-xl sm:text-2xl font-bold text-white tracking-tight">
+              <h2 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
                 {task.title}
               </h2>
             </div>
 
             <button
               onClick={onClose}
-              className="p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer shrink-0"
+              className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
             >
               <X className="w-5 h-5" />
             </button>
@@ -192,38 +189,38 @@ export default function TaskDetailsModal({
 
           {/* Description */}
           {task.description && (
-            <p className="mt-3 text-xs sm:text-sm text-slate-300 leading-relaxed bg-slate-900/60 p-3.5 rounded-2xl border border-slate-800/60">
+            <p className="mt-3 text-xs sm:text-sm text-slate-700 leading-relaxed bg-white p-3.5 rounded-2xl border border-slate-200">
               {task.description}
             </p>
           )}
 
           {/* Metadata Row */}
-          <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs text-slate-400">
-            <div className="flex items-center gap-2 bg-slate-900/40 px-3 py-2 rounded-xl border border-slate-800/40">
-              <User className="w-3.5 h-3.5 text-indigo-400 shrink-0" />
+          <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs text-slate-600">
+            <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-200">
+              <User className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
               <div className="truncate">
-                <span className="text-[10px] uppercase tracking-wider text-slate-500 block">Assignee</span>
-                <span className="font-medium text-slate-200 truncate">
+                <span className="text-[10px] uppercase tracking-wider text-slate-400 block">Assignee</span>
+                <span className="font-medium text-slate-800 truncate">
                   {task.assignee_name || 'Unassigned'}
                 </span>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 bg-slate-900/40 px-3 py-2 rounded-xl border border-slate-800/40">
-              <Calendar className={`w-3.5 h-3.5 ${isOverdue ? 'text-rose-400' : 'text-slate-400'} shrink-0`} />
+            <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-200">
+              <Calendar className={`w-3.5 h-3.5 ${isOverdue ? 'text-rose-600' : 'text-slate-400'} shrink-0`} />
               <div className="truncate">
-                <span className="text-[10px] uppercase tracking-wider text-slate-500 block">Deadline</span>
-                <span className={`font-medium truncate ${isOverdue ? 'text-rose-400' : 'text-slate-200'}`}>
+                <span className="text-[10px] uppercase tracking-wider text-slate-400 block">Deadline</span>
+                <span className={`font-medium truncate ${isOverdue ? 'text-rose-600' : 'text-slate-800'}`}>
                   {task.due_date ? formatTimestamp(task.due_date) : 'No deadline'}
                 </span>
               </div>
             </div>
 
-            <div className="flex items-center gap-2 bg-slate-900/40 px-3 py-2 rounded-xl border border-slate-800/40 col-span-2 sm:col-span-1">
+            <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-200 col-span-2 sm:col-span-1">
               <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
               <div className="truncate">
-                <span className="text-[10px] uppercase tracking-wider text-slate-500 block">Created</span>
-                <span className="font-medium text-slate-200 truncate">
+                <span className="text-[10px] uppercase tracking-wider text-slate-400 block">Created</span>
+                <span className="font-medium text-slate-800 truncate">
                   {formatTimestamp(task.created_at)}
                 </span>
               </div>
@@ -232,10 +229,10 @@ export default function TaskDetailsModal({
         </div>
 
         {/* Discussion Section Header */}
-        <div className="px-6 py-2.5 bg-slate-900/70 border-b border-slate-800/80 flex items-center justify-between">
+        <div className="px-6 py-2.5 bg-slate-50 border-b border-slate-200 flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <MessageSquare className="w-4 h-4 text-indigo-400" />
-            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-300">
+            <MessageSquare className="w-4 h-4 text-indigo-600" />
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-700">
               Discussion & Activity ({comments.length})
             </h3>
           </div>
@@ -245,31 +242,31 @@ export default function TaskDetailsModal({
         </div>
 
         {/* Comments Scrollable Area */}
-        <div className="flex-1 overflow-y-auto p-6 space-y-4">
+        <div className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50/40">
           {/* Loading */}
           {loadingComments && (
             <div className="py-12 flex flex-col items-center justify-center gap-2 text-slate-400">
-              <Loader2 className="w-6 h-6 animate-spin text-indigo-500" />
+              <Loader2 className="w-6 h-6 animate-spin text-indigo-600" />
               <span className="text-xs">Loading discussion thread...</span>
             </div>
           )}
 
           {/* Error */}
           {commentsError && (
-            <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 p-3.5 flex items-start gap-2.5">
-              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0 mt-0.5" />
-              <div className="text-xs text-rose-300 font-medium">{commentsError}</div>
+            <div className="rounded-xl border border-rose-200 bg-rose-50 p-3.5 flex items-start gap-2.5">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+              <div className="text-xs text-rose-700 font-medium">{commentsError}</div>
             </div>
           )}
 
           {/* Empty State */}
           {!loadingComments && !commentsError && comments.length === 0 && (
             <div className="py-12 text-center space-y-2">
-              <div className="w-12 h-12 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 flex items-center justify-center mx-auto">
+              <div className="w-12 h-12 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center mx-auto">
                 <MessageSquare className="w-6 h-6" />
               </div>
-              <p className="text-sm font-semibold text-white">No comments yet</p>
-              <p className="text-xs text-slate-400 max-w-xs mx-auto">
+              <p className="text-sm font-semibold text-slate-800">No comments yet</p>
+              <p className="text-xs text-slate-500 max-w-xs mx-auto">
                 Be the first to share an update, discuss blockers, or document progress on this deliverable.
               </p>
             </div>
@@ -277,7 +274,7 @@ export default function TaskDetailsModal({
 
           {/* Comments List */}
           {!loadingComments && comments.length > 0 && (
-            <div className="space-y-4">
+            <div className="space-y-3.5">
               {comments.map((c) => {
                 const isAuthor = currentUser?.id === c.user_id;
                 const isBeingEdited = editingComment?.id === c.id;
@@ -289,28 +286,28 @@ export default function TaskDetailsModal({
                     key={c.id}
                     className={`rounded-2xl p-4 border transition-all ${
                       isAuthor
-                        ? 'bg-indigo-950/20 border-indigo-500/30'
-                        : 'bg-slate-900/60 border-slate-800'
+                        ? 'bg-indigo-50/60 border-indigo-200'
+                        : 'bg-white border-slate-200 shadow-2xs'
                     }`}
                   >
                     {/* Comment Top bar */}
                     <div className="flex items-center justify-between gap-2 mb-2">
                       <div className="flex items-center gap-2.5">
-                        <div className="w-7 h-7 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 text-xs font-bold text-white flex items-center justify-center shrink-0 shadow-sm">
+                        <div className="w-7 h-7 rounded-full bg-indigo-600 text-xs font-bold text-white flex items-center justify-center shrink-0 shadow-xs">
                           {getInitials(c.user_name)}
                         </div>
                         <div>
-                          <span className="text-xs font-bold text-white mr-2">
+                          <span className="text-xs font-bold text-slate-900 mr-2">
                             {c.user_name}
                           </span>
                           {isAuthor && (
-                            <span className="px-1.5 py-0.2 rounded text-[10px] font-semibold bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+                            <span className="px-1.5 py-0.5 rounded-md text-[10px] font-semibold bg-indigo-100 text-indigo-700 border border-indigo-200">
                               You
                             </span>
                           )}
-                          <span className="text-[11px] text-slate-500 ml-2">
+                          <span className="text-[11px] text-slate-400 ml-2">
                             {formatTimestamp(c.created_at)}
-                            {isEdited && <span className="ml-1 text-slate-500 italic">(edited)</span>}
+                            {isEdited && <span className="ml-1 text-slate-400 italic">(edited)</span>}
                           </span>
                         </div>
                       </div>
@@ -323,14 +320,14 @@ export default function TaskDetailsModal({
                               setEditingComment({ id: c.id, text: c.comment })
                             }
                             title="Edit Comment"
-                            className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                            className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
                           >
                             <Edit2 className="w-3.5 h-3.5" />
                           </button>
                           <button
                             onClick={() => setDeletingCommentId(c.id)}
                             title="Delete Comment"
-                            className="p-1 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+                            className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
                           </button>
@@ -340,22 +337,22 @@ export default function TaskDetailsModal({
 
                     {/* Delete Confirmation Box */}
                     {isBeingDeleted && (
-                      <div className="mt-2 p-3 rounded-xl bg-rose-950/40 border border-rose-500/40 flex items-center justify-between gap-3 animate-in fade-in">
-                        <span className="text-xs text-rose-200">
+                      <div className="mt-2 p-3 rounded-xl bg-rose-50 border border-rose-200 flex items-center justify-between gap-3 animate-in fade-in">
+                        <span className="text-xs text-rose-700 font-medium">
                           Delete this comment?
                         </span>
                         <div className="flex items-center gap-2">
                           <button
                             onClick={() => setDeletingCommentId(null)}
                             disabled={isDeleting}
-                            className="px-2 py-1 rounded-lg text-xs font-medium text-slate-300 hover:bg-slate-800 cursor-pointer"
+                            className="px-2.5 py-1 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-100 cursor-pointer"
                           >
                             Cancel
                           </button>
                           <button
                             onClick={() => handleDeleteComment(c.id)}
                             disabled={isDeleting}
-                            className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-500 text-white text-xs font-medium flex items-center gap-1 cursor-pointer"
+                            className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-medium flex items-center gap-1 cursor-pointer"
                           >
                             {isDeleting && <Loader2 className="w-3 h-3 animate-spin" />}
                             Delete
@@ -376,20 +373,20 @@ export default function TaskDetailsModal({
                               text: e.target.value,
                             })
                           }
-                          className="w-full px-3 py-2 bg-slate-900 border border-indigo-500/50 rounded-xl text-xs sm:text-sm text-white focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-none"
+                          className="w-full px-3 py-2 bg-white border border-indigo-300 rounded-xl text-xs sm:text-sm text-slate-900 focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-none"
                         />
                         <div className="flex items-center justify-end gap-2">
                           <button
                             onClick={() => setEditingComment(null)}
                             disabled={updatingComment}
-                            className="px-2.5 py-1 rounded-lg text-xs font-medium text-slate-400 hover:text-white cursor-pointer"
+                            className="px-2.5 py-1 rounded-lg text-xs font-medium text-slate-600 hover:text-slate-900 cursor-pointer"
                           >
                             Cancel
                           </button>
                           <button
                             onClick={() => handleSaveEditComment(c.id)}
                             disabled={updatingComment || !editingComment.text.trim()}
-                            className="px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-medium flex items-center gap-1 cursor-pointer disabled:opacity-50"
+                            className="px-3 py-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium flex items-center gap-1 cursor-pointer disabled:opacity-50"
                           >
                             {updatingComment && <Loader2 className="w-3 h-3 animate-spin" />}
                             Save
@@ -398,7 +395,7 @@ export default function TaskDetailsModal({
                       </div>
                     ) : (
                       !isBeingDeleted && (
-                        <p className="text-xs sm:text-sm text-slate-200 leading-relaxed whitespace-pre-wrap pl-9">
+                        <p className="text-xs sm:text-sm text-slate-700 leading-relaxed whitespace-pre-wrap pl-9">
                           {c.comment}
                         </p>
                       )
@@ -412,10 +409,10 @@ export default function TaskDetailsModal({
         </div>
 
         {/* Comment Composer */}
-        <div className="p-4 border-t border-slate-800 bg-slate-900/70 shrink-0">
+        <div className="p-4 border-t border-slate-200 bg-white shrink-0">
           {postError && (
-            <div className="mb-2 rounded-xl border border-rose-500/30 bg-rose-500/10 p-2.5 flex items-start gap-2 text-xs text-rose-300">
-              <AlertCircle className="w-4 h-4 text-rose-400 shrink-0" />
+            <div className="mb-2 rounded-xl border border-rose-200 bg-rose-50 p-2.5 flex items-start gap-2 text-xs text-rose-700">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
               <span>{postError}</span>
             </div>
           )}
@@ -427,15 +424,15 @@ export default function TaskDetailsModal({
                 value={newComment}
                 onChange={(e) => setNewComment(e.target.value)}
                 onKeyDown={handleKeyDown}
-                placeholder="Write a comment or status update... (Press Ctrl+Enter to send)"
-                className="w-full px-4 py-3 bg-slate-900/90 border border-slate-800 rounded-2xl text-xs sm:text-sm text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors resize-none pr-24"
+                placeholder="Write a comment or deliverable status update... (Press Ctrl+Enter to send)"
+                className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors resize-none pr-24 shadow-2xs"
               />
 
               <div className="absolute right-2.5 bottom-3.5 flex items-center gap-1.5">
                 <button
                   type="submit"
                   disabled={postingComment || !newComment.trim()}
-                  className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white text-xs font-semibold flex items-center gap-1.5 transition-all shadow-md shadow-indigo-600/20 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+                  className="px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs font-semibold flex items-center gap-1.5 transition-all shadow-xs cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
                 >
                   {postingComment ? (
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -447,7 +444,7 @@ export default function TaskDetailsModal({
               </div>
             </div>
 
-            <div className="flex items-center justify-between text-[11px] text-slate-500 px-1">
+            <div className="flex items-center justify-between text-[11px] text-slate-400 px-1">
               <span>Shortcut: <strong>Ctrl + Enter</strong></span>
               <span>{newComment.length} / 5000</span>
             </div>

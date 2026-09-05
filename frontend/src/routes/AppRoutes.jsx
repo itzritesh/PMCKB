@@ -13,15 +13,17 @@ import ProjectsPage from '../pages/ProjectsPage';
 import ProjectDetailsPage from '../pages/ProjectDetailsPage';
 import TasksPage from '../pages/TasksPage';
 import MeetingsPage from '../pages/MeetingsPage';
+import MeetingDetailsPage from '../pages/MeetingDetailsPage';
 import CalendarPage from '../pages/CalendarPage';
 import KnowledgePage from '../pages/KnowledgePage';
+import ArticleDetailsPage from '../pages/ArticleDetailsPage';
 
 export default function AppRoutes() {
   const [backendStatus, setBackendStatus] = useState('checking');
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-950 text-slate-100 selection:bg-indigo-500 selection:text-white">
+    <div className="min-h-screen flex flex-col bg-slate-50 text-slate-900 selection:bg-indigo-600 selection:text-white">
       <Navbar
         backendStatus={backendStatus}
         onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
@@ -76,6 +78,14 @@ export default function AppRoutes() {
             }
           />
           <Route
+            path="/meetings/:id"
+            element={
+              <ProtectedRoute>
+                <MeetingDetailsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/calendar"
             element={
               <ProtectedRoute>
@@ -91,11 +101,19 @@ export default function AppRoutes() {
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/knowledge/:id"
+            element={
+              <ProtectedRoute>
+                <ArticleDetailsPage />
+              </ProtectedRoute>
+            }
+          />
           <Route path="*" element={<NotFoundPage />} />
         </Routes>
       </main>
-      <footer className="border-t border-slate-900 bg-slate-950 py-6 text-center text-xs text-slate-500">
-        <p>Projects, Meetings, Calendar, Knowledge Base • Phase 7 Final Dashboard</p>
+      <footer className="border-t border-slate-200 bg-white py-6 text-center text-xs text-slate-500">
+        <p>Projects, Meetings, Calendar, Knowledge Base • PMCKB Workspace OS</p>
       </footer>
     </div>
   );

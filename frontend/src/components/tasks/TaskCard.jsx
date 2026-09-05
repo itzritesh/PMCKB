@@ -44,7 +44,6 @@ export default function TaskCard({
       })
     : null;
 
-  // Generate initials from assignee name
   const getInitials = (name) => {
     if (!name) return '?';
     const parts = name.trim().split(' ');
@@ -56,12 +55,12 @@ export default function TaskCard({
 
   return (
     <div
-      className={`glass-card glass-card-hover rounded-2xl p-5 border transition-all relative flex flex-col justify-between ${
+      className={`rounded-2xl p-5 border transition-all relative flex flex-col justify-between shadow-xs hover:shadow-md ${
         isOverdue
-          ? 'border-rose-500/40 bg-rose-950/10 shadow-lg shadow-rose-950/20'
+          ? 'border-rose-200 bg-rose-50/40'
           : task.status === 'completed'
-          ? 'border-emerald-500/20 bg-emerald-950/5'
-          : 'border-slate-800/80'
+          ? 'border-emerald-200 bg-emerald-50/20'
+          : 'border-slate-200 bg-white hover:border-slate-300'
       }`}
     >
       <div>
@@ -71,7 +70,7 @@ export default function TaskCard({
             <TaskStatusPill status={task.status} />
             <PriorityBadge priority={task.priority} />
             {isOverdue && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-rose-500/20 text-rose-400 border border-rose-500/30 animate-pulse">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-rose-50 text-rose-700 border border-rose-200">
                 <AlertTriangle className="w-3 h-3" />
                 Overdue
               </span>
@@ -83,7 +82,7 @@ export default function TaskCard({
             <button
               onClick={() => onOpenDetails?.(task)}
               title="Open Discussion & Comments"
-              className="p-1 rounded-lg text-slate-400 hover:text-indigo-400 hover:bg-slate-800 transition-colors cursor-pointer"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-slate-100 transition-colors cursor-pointer"
             >
               <MessageSquare className="w-3.5 h-3.5" />
             </button>
@@ -98,25 +97,25 @@ export default function TaskCard({
                 onStatusChange(task, nextStatus);
               }}
               title={`Advance status from ${task.status}`}
-              className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer text-xs flex items-center gap-1"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-slate-100 transition-colors cursor-pointer text-xs flex items-center gap-1"
             >
               {task.status === 'completed' ? (
-                <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
               ) : (
-                <Circle className="w-4 h-4 text-slate-500 hover:text-indigo-400" />
+                <Circle className="w-4 h-4 text-slate-400 hover:text-indigo-600" />
               )}
             </button>
             <button
               onClick={() => onEdit(task)}
               title="Edit Task"
-              className="p-1 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
             >
               <Edit3 className="w-3.5 h-3.5" />
             </button>
             <button
               onClick={() => onDelete(task)}
               title="Delete Task"
-              className="p-1 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
             >
               <Trash2 className="w-3.5 h-3.5" />
             </button>
@@ -125,7 +124,7 @@ export default function TaskCard({
 
         {/* Project Tag (if rendered in global list) */}
         {showProject && task.project_name && (
-          <div className="inline-flex items-center gap-1 text-[11px] font-medium text-indigo-400 mb-1.5">
+          <div className="inline-flex items-center gap-1 text-[11px] font-medium text-indigo-600 mb-1.5">
             <FolderGit2 className="w-3 h-3" />
             <span>{task.project_name}</span>
           </div>
@@ -134,10 +133,10 @@ export default function TaskCard({
         {/* Title */}
         <h4
           onClick={() => onOpenDetails?.(task)}
-          className={`text-sm sm:text-base font-semibold transition-colors mb-1.5 cursor-pointer hover:text-indigo-300 ${
+          className={`text-sm sm:text-base font-semibold transition-colors mb-1.5 cursor-pointer hover:text-indigo-600 ${
             task.status === 'completed'
               ? 'line-through text-slate-400'
-              : 'text-white'
+              : 'text-slate-900'
           }`}
         >
           {task.title}
@@ -147,7 +146,7 @@ export default function TaskCard({
         {task.description && (
           <p
             onClick={() => onOpenDetails?.(task)}
-            className="text-xs text-slate-400 line-clamp-2 leading-relaxed mb-4 cursor-pointer hover:text-slate-300"
+            className="text-xs text-slate-500 line-clamp-2 leading-relaxed mb-4 cursor-pointer hover:text-slate-700"
           >
             {task.description}
           </p>
@@ -155,16 +154,16 @@ export default function TaskCard({
       </div>
 
       {/* Footer: Due date & Assignee with Quick Reassign Dropdown */}
-      <div className="pt-3 border-t border-slate-800/80 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-400 relative">
+      <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 relative">
         {/* Due Date */}
         <div className="flex items-center gap-1.5">
-          <Calendar className={`w-3.5 h-3.5 ${isOverdue ? 'text-rose-400' : 'text-slate-500'}`} />
+          <Calendar className={`w-3.5 h-3.5 ${isOverdue ? 'text-rose-500' : 'text-slate-400'}`} />
           {formattedDueDate ? (
-            <span className={isOverdue ? 'text-rose-400 font-semibold' : 'text-slate-300'}>
+            <span className={isOverdue ? 'text-rose-600 font-semibold' : 'text-slate-600'}>
               {formattedDueDate}
             </span>
           ) : (
-            <span className="text-slate-600">No deadline</span>
+            <span className="text-slate-400">No deadline</span>
           )}
         </div>
 
@@ -174,30 +173,30 @@ export default function TaskCard({
             type="button"
             onClick={() => setShowAssignDropdown(!showAssignDropdown)}
             title="Click to reassign or unassign"
-            className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-slate-900/90 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 transition-colors cursor-pointer text-slate-300"
+            className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer text-slate-700"
           >
             {task.assignee_name ? (
               <>
-                <div className="w-5 h-5 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 text-[10px] font-bold text-white flex items-center justify-center shrink-0">
+                <div className="w-5 h-5 rounded-full bg-indigo-600 text-[10px] font-bold text-white flex items-center justify-center shrink-0">
                   {getInitials(task.assignee_name)}
                 </div>
-                <span className="max-w-[100px] truncate text-[11px] font-medium text-slate-200">
+                <span className="max-w-[100px] truncate text-[11px] font-medium text-slate-800">
                   {task.assignee_name}
                 </span>
               </>
             ) : (
               <>
-                <UserX className="w-3.5 h-3.5 text-slate-500" />
+                <UserX className="w-3.5 h-3.5 text-slate-400" />
                 <span className="text-[11px] text-slate-500">Unassigned</span>
               </>
             )}
-            <ChevronDown className="w-3 h-3 text-slate-500" />
+            <ChevronDown className="w-3 h-3 text-slate-400" />
           </button>
 
           {/* Quick Assign Dropdown Popover */}
           {showAssignDropdown && (
-            <div className="absolute right-0 bottom-full mb-2 w-56 rounded-2xl bg-slate-900 border border-slate-800 shadow-2xl p-2 z-30 animate-in fade-in zoom-in-95 duration-150">
-              <div className="px-2 py-1 text-[10px] font-semibold text-slate-500 uppercase tracking-wider border-b border-slate-800 mb-1">
+            <div className="absolute right-0 bottom-full mb-2 w-56 rounded-2xl bg-white border border-slate-200 shadow-xl p-2 z-30 animate-in fade-in zoom-in-95 duration-150">
+              <div className="px-2 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider border-b border-slate-100 mb-1">
                 Assign Task
               </div>
 
@@ -210,8 +209,8 @@ export default function TaskCard({
                 }}
                 className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-xl text-left text-xs transition-colors cursor-pointer ${
                   !task.assigned_to
-                    ? 'bg-indigo-600/20 text-indigo-300'
-                    : 'text-slate-400 hover:bg-slate-800 hover:text-white'
+                    ? 'bg-indigo-50 text-indigo-700 font-medium'
+                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
                 }`}
               >
                 <UserX className="w-3.5 h-3.5" />
@@ -232,16 +231,16 @@ export default function TaskCard({
                       }}
                       className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-xl text-left text-xs transition-colors cursor-pointer ${
                         isSelected
-                          ? 'bg-indigo-600/20 text-indigo-300'
-                          : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                          ? 'bg-indigo-50 text-indigo-700 font-medium'
+                          : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
                       }`}
                     >
-                      <div className="w-5 h-5 rounded-full bg-slate-800 border border-slate-700 text-[10px] font-bold text-slate-300 flex items-center justify-center shrink-0">
+                      <div className="w-5 h-5 rounded-full bg-slate-100 border border-slate-200 text-[10px] font-bold text-slate-600 flex items-center justify-center shrink-0">
                         {getInitials(u.name)}
                       </div>
                       <div className="truncate">
-                        <span className="block truncate font-medium">{u.name}</span>
-                        <span className="block truncate text-[10px] text-slate-500">{u.email}</span>
+                        <span className="block truncate font-medium text-slate-900">{u.name}</span>
+                        <span className="block truncate text-[10px] text-slate-400">{u.email}</span>
                       </div>
                     </button>
                   );

@@ -4,23 +4,23 @@ import { Circle, Clock, CheckCircle2 } from 'lucide-react';
 const STATUS_CONFIG = {
   todo: {
     label: 'To Do',
-    bg: 'bg-slate-800',
-    text: 'text-slate-300',
-    border: 'border-slate-700',
+    bg: 'bg-slate-100',
+    text: 'text-slate-700',
+    border: 'border-slate-200',
     icon: Circle,
   },
   in_progress: {
     label: 'In Progress',
-    bg: 'bg-amber-500/10',
-    text: 'text-amber-400',
-    border: 'border-amber-500/20',
+    bg: 'bg-blue-50',
+    text: 'text-blue-700',
+    border: 'border-blue-200',
     icon: Clock,
   },
   completed: {
     label: 'Completed',
-    bg: 'bg-emerald-500/10',
-    text: 'text-emerald-400',
-    border: 'border-emerald-500/20',
+    bg: 'bg-emerald-50',
+    text: 'text-emerald-700',
+    border: 'border-emerald-200',
     icon: CheckCircle2,
   },
 };

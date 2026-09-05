@@ -2,21 +2,21 @@ import React from 'react';
 
 export default function StatusBadge({ status, label, className = '' }) {
   const statusStyles = {
-    online: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-    healthy: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-    connected: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
-    offline: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
-    disconnected: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
-    loading: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
+    online: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    healthy: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    connected: 'bg-emerald-50 text-emerald-700 border-emerald-200',
+    offline: 'bg-rose-50 text-rose-700 border-rose-200',
+    disconnected: 'bg-amber-50 text-amber-700 border-amber-200',
+    loading: 'bg-indigo-50 text-indigo-700 border-indigo-200',
   };
 
   const dotStyles = {
-    online: 'bg-emerald-400',
-    healthy: 'bg-emerald-400 animate-pulse',
-    connected: 'bg-emerald-400',
-    offline: 'bg-rose-400',
-    disconnected: 'bg-amber-400',
-    loading: 'bg-indigo-400 animate-ping',
+    online: 'bg-emerald-500',
+    healthy: 'bg-emerald-500 animate-pulse',
+    connected: 'bg-emerald-500',
+    offline: 'bg-rose-500',
+    disconnected: 'bg-amber-500',
+    loading: 'bg-indigo-500 animate-ping',
   };
 
   const currentStyle = statusStyles[status] || statusStyles.offline;

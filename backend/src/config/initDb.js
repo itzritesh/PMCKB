@@ -7,7 +7,7 @@ async function initDb() {
   console.log('Initializing database tables on PostgreSQL (Neon)...');
 
   const createTablesQuery = `
-    -- Users Table
+    -- Users Table (Phase 1 & 2)
     CREATE TABLE IF NOT EXISTS users (
       id SERIAL PRIMARY KEY,
       name VARCHAR(255) NOT NULL,
@@ -17,7 +17,7 @@ async function initDb() {
     );
     CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
 
-    -- Projects Table
+    -- Projects Table (Phase 3)
     CREATE TABLE IF NOT EXISTS projects (
       id SERIAL PRIMARY KEY,
       name VARCHAR(255) NOT NULL,
@@ -29,7 +29,7 @@ async function initDb() {
     );
     CREATE INDEX IF NOT EXISTS idx_projects_owner_id ON projects(owner_id);
 
-    -- Tasks Table
+    -- Tasks Table (Phase 4 & 5)
     CREATE TABLE IF NOT EXISTS tasks (
       id SERIAL PRIMARY KEY,
       project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -56,11 +56,95 @@ async function initDb() {
     );
     CREATE INDEX IF NOT EXISTS idx_task_comments_task_id ON task_comments(task_id);
     CREATE INDEX IF NOT EXISTS idx_task_comments_user_id ON task_comments(user_id);
+
+    -- 1. Calendar Events Table
+    CREATE TABLE IF NOT EXISTS calendar_events (
+      id SERIAL PRIMARY KEY,
+      title VARCHAR(255) NOT NULL,
+      description TEXT,
+      start_datetime TIMESTAMP WITH TIME ZONE NOT NULL,
+      end_datetime TIMESTAMP WITH TIME ZONE NOT NULL,
+      location VARCHAR(255),
+      created_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_calendar_events_created_by ON calendar_events(created_by);
+    CREATE INDEX IF NOT EXISTS idx_calendar_events_start_datetime ON calendar_events(start_datetime);
+
+    -- 2. Meetings Table
+    CREATE TABLE IF NOT EXISTS meetings (
+      id SERIAL PRIMARY KEY,
+      title VARCHAR(255) NOT NULL,
+      description TEXT,
+      start_datetime TIMESTAMP WITH TIME ZONE NOT NULL,
+      end_datetime TIMESTAMP WITH TIME ZONE NOT NULL,
+      location VARCHAR(255),
+      organizer_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      status VARCHAR(50) NOT NULL DEFAULT 'scheduled',
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_meetings_organizer_id ON meetings(organizer_id);
+    CREATE INDEX IF NOT EXISTS idx_meetings_start_datetime ON meetings(start_datetime);
+    CREATE INDEX IF NOT EXISTS idx_meetings_status ON meetings(status);
+
+    -- 3. Meeting Attendees Table
+    CREATE TABLE IF NOT EXISTS meeting_attendees (
+      id SERIAL PRIMARY KEY,
+      meeting_id INTEGER NOT NULL REFERENCES meetings(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      response_status VARCHAR(50) NOT NULL DEFAULT 'pending',
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (meeting_id, user_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_meeting_attendees_meeting_id ON meeting_attendees(meeting_id);
+    CREATE INDEX IF NOT EXISTS idx_meeting_attendees_user_id ON meeting_attendees(user_id);
+
+    -- 4. Meeting Minutes Table (1:1 per meeting)
+    CREATE TABLE IF NOT EXISTS meeting_minutes (
+      id SERIAL PRIMARY KEY,
+      meeting_id INTEGER NOT NULL REFERENCES meetings(id) ON DELETE CASCADE UNIQUE,
+      summary TEXT,
+      discussion TEXT,
+      decisions TEXT,
+      action_items TEXT,
+      created_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_meeting_minutes_meeting_id ON meeting_minutes(meeting_id);
+
+    -- 5. Knowledge Base Categories Table
+    CREATE TABLE IF NOT EXISTS kb_categories (
+      id SERIAL PRIMARY KEY,
+      name VARCHAR(255) NOT NULL UNIQUE,
+      description TEXT,
+      created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_kb_categories_name ON kb_categories(name);
+
+    -- 6. Knowledge Base Articles Table
+    CREATE TABLE IF NOT EXISTS kb_articles (
+      id SERIAL PRIMARY KEY,
+      title VARCHAR(255) NOT NULL,
+      content TEXT NOT NULL,
+      category_id INTEGER REFERENCES kb_categories(id) ON DELETE RESTRICT,
+      author_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      status VARCHAR(50) NOT NULL DEFAULT 'draft',
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_kb_articles_title ON kb_articles(title);
+    CREATE INDEX IF NOT EXISTS idx_kb_articles_category_id ON kb_articles(category_id);
+    CREATE INDEX IF NOT EXISTS idx_kb_articles_status ON kb_articles(status);
+    CREATE INDEX IF NOT EXISTS idx_kb_articles_author_id ON kb_articles(author_id);
   `;
 
   try {
     await query(createTablesQuery);
-    console.log('✅ Database initialization completed: `users`, `projects`, `tasks`, and `task_comments` tables are ready.');
+    console.log('✅ Database initialization completed: All 10 relational tables and indexes are ready.');
     return { success: true };
   } catch (error) {
     console.error('❌ Database initialization failed:', error.message);

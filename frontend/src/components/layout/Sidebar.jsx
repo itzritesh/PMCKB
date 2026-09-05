@@ -10,8 +10,6 @@ import {
   LogOut,
   X,
   Layers,
-  ChevronRight,
-  ShieldCheck,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -29,43 +27,43 @@ export default function Sidebar({ isOpen = false, onClose }) {
       to: '/dashboard',
       label: 'Dashboard',
       icon: LayoutDashboard,
-      activeColor: 'text-indigo-400 bg-indigo-500/10 border-indigo-500/30',
+      activeColor: 'text-indigo-700 bg-indigo-50 border-indigo-200 font-semibold',
       badge: 'Core',
     },
     {
       to: '/projects',
       label: 'Projects',
       icon: FolderGit2,
-      activeColor: 'text-blue-400 bg-blue-500/10 border-blue-500/30',
+      activeColor: 'text-indigo-700 bg-indigo-50 border-indigo-200 font-semibold',
       badge: 'Active',
     },
     {
       to: '/tasks',
       label: 'Tasks',
       icon: CheckSquare,
-      activeColor: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/30',
+      activeColor: 'text-indigo-700 bg-indigo-50 border-indigo-200 font-semibold',
       badge: 'Active',
     },
     {
       to: '/meetings',
       label: 'Meetings',
       icon: Users,
-      activeColor: 'text-purple-400 bg-purple-500/10 border-purple-500/30',
-      badge: 'Preview',
+      activeColor: 'text-indigo-700 bg-indigo-50 border-indigo-200 font-semibold',
+      badge: 'Active',
     },
     {
       to: '/calendar',
       label: 'Calendar',
       icon: Calendar,
-      activeColor: 'text-amber-400 bg-amber-500/10 border-amber-500/30',
-      badge: 'Preview',
+      activeColor: 'text-indigo-700 bg-indigo-50 border-indigo-200 font-semibold',
+      badge: 'Active',
     },
     {
       to: '/knowledge',
       label: 'Knowledge Base',
       icon: BookOpen,
-      activeColor: 'text-pink-400 bg-pink-500/10 border-pink-500/30',
-      badge: 'Preview',
+      activeColor: 'text-indigo-700 bg-indigo-50 border-indigo-200 font-semibold',
+      badge: 'Active',
     },
   ];
 
@@ -79,17 +77,17 @@ export default function Sidebar({ isOpen = false, onClose }) {
   };
 
   const content = (
-    <div className="flex flex-col h-full justify-between p-4 sm:p-6 bg-slate-950/95 border-r border-slate-800/80 backdrop-blur-xl">
+    <div className="flex flex-col h-full justify-between p-4 sm:p-6 bg-white border-r border-slate-200 shadow-xs">
       <div className="space-y-6">
         {/* Header Branding */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-gradient-to-tr from-indigo-600 via-purple-600 to-pink-500 flex items-center justify-center shadow-lg shadow-indigo-500/25">
-              <Layers className="w-5 h-5 text-white" />
+            <div className="w-10 h-10 rounded-2xl bg-indigo-600 flex items-center justify-center text-white shadow-sm">
+              <Layers className="w-5 h-5" />
             </div>
             <div>
-              <span className="text-base font-bold text-white tracking-tight">PMCKB</span>
-              <span className="block text-[10px] uppercase tracking-wider text-indigo-400 font-semibold">
+              <span className="text-base font-bold text-slate-900 tracking-tight">PMCKB</span>
+              <span className="block text-[10px] uppercase tracking-wider text-indigo-600 font-semibold">
                 Workspace OS
               </span>
             </div>
@@ -98,7 +96,7 @@ export default function Sidebar({ isOpen = false, onClose }) {
           {onClose && (
             <button
               onClick={onClose}
-              className="lg:hidden p-2 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+              className="lg:hidden p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
             >
               <X className="w-5 h-5" />
             </button>
@@ -107,7 +105,7 @@ export default function Sidebar({ isOpen = false, onClose }) {
 
         {/* Navigation Section */}
         <div className="space-y-1">
-          <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+          <div className="px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-slate-400">
             Navigation Modules
           </div>
 
@@ -121,8 +119,8 @@ export default function Sidebar({ isOpen = false, onClose }) {
                 className={({ isActive }) =>
                   `flex items-center justify-between px-3.5 py-2.5 rounded-2xl text-xs sm:text-sm font-medium transition-all border ${
                     isActive
-                      ? `${item.activeColor} shadow-md`
-                      : 'border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-900/80 hover:border-slate-800'
+                      ? `${item.activeColor} shadow-xs`
+                      : 'border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-50'
                   }`
                 }
               >
@@ -132,12 +130,12 @@ export default function Sidebar({ isOpen = false, onClose }) {
                 </div>
 
                 <span
-                  className={`px-1.5 py-0.5 rounded-md text-[10px] font-semibold ${
+                  className={`px-1.5 py-0.5 rounded-md text-[10px] font-semibold border ${
                     item.badge === 'Active'
-                      ? 'bg-emerald-500/20 text-emerald-300'
+                      ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                       : item.badge === 'Core'
-                      ? 'bg-indigo-500/20 text-indigo-300'
-                      : 'bg-slate-800 text-slate-400'
+                      ? 'bg-indigo-50 text-indigo-700 border-indigo-200'
+                      : 'bg-slate-100 text-slate-600 border-slate-200'
                   }`}
                 >
                   {item.badge}
@@ -149,17 +147,17 @@ export default function Sidebar({ isOpen = false, onClose }) {
       </div>
 
       {/* User Session Footer */}
-      <div className="pt-4 border-t border-slate-800/80 space-y-3">
-        <div className="p-3 rounded-2xl bg-slate-900/80 border border-slate-800/80 flex items-center justify-between">
+      <div className="pt-4 border-t border-slate-200 space-y-3">
+        <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 flex items-center justify-between">
           <div className="flex items-center gap-2.5 truncate">
-            <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-600 to-purple-600 text-xs font-bold text-white flex items-center justify-center shrink-0 shadow-sm">
+            <div className="w-8 h-8 rounded-full bg-indigo-600 text-xs font-bold text-white flex items-center justify-center shrink-0 shadow-xs">
               {getInitials(user?.name)}
             </div>
             <div className="truncate">
-              <span className="block text-xs font-semibold text-white truncate">
-                {user?.name || 'Authorized User'}
+              <span className="block text-xs font-semibold text-slate-900 truncate">
+                {user?.name || 'Workspace Member'}
               </span>
-              <span className="block text-[10px] text-slate-400 truncate">
+              <span className="block text-[10px] text-slate-500 truncate">
                 {user?.email || ''}
               </span>
             </div>
@@ -168,7 +166,7 @@ export default function Sidebar({ isOpen = false, onClose }) {
           <button
             onClick={handleLogout}
             title="Sign Out"
-            className="p-1.5 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+            className="p-1.5 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
           >
             <LogOut className="w-4 h-4" />
           </button>
@@ -183,11 +181,11 @@ export default function Sidebar({ isOpen = false, onClose }) {
       {isOpen && (
         <div
           onClick={onClose}
-          className="lg:hidden fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200"
+          className="lg:hidden fixed inset-0 z-50 bg-slate-900/30 backdrop-blur-xs animate-in fade-in duration-200"
         >
           <div
             onClick={(e) => e.stopPropagation()}
-            className="w-72 h-full bg-slate-950 shadow-2xl animate-in slide-in-from-left duration-200"
+            className="w-72 h-full bg-white shadow-xl animate-in slide-in-from-left duration-200"
           >
             {content}
           </div>

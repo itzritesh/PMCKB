@@ -4,11 +4,8 @@ import {
   Database,
   Cpu,
   RefreshCw,
-  CheckCircle2,
   AlertCircle,
-  Clock,
   Terminal,
-  Layers,
   Calendar,
   Users,
   BookOpen,
@@ -66,7 +63,7 @@ export default function HomePage({ onStatusUpdate }) {
 
   const commands = [
     { title: 'Start Backend Dev Server', cmd: 'cd backend && npm run dev' },
-    { title: 'Test Database Connectivity', cmd: 'cd backend && npm run db:test' },
+    { title: 'Run Database Migrations', cmd: 'cd backend && npm run db:init' },
     { title: 'Start Frontend Dev Server', cmd: 'cd frontend && npm run dev' },
     { title: 'Query Healthcheck Endpoint', cmd: 'curl http://localhost:5000/api/health' },
   ];
@@ -75,61 +72,58 @@ export default function HomePage({ onStatusUpdate }) {
     {
       title: 'Project Management',
       icon: FolderGit2,
-      color: 'from-blue-500 to-indigo-600',
-      description: 'Hierarchical task trees, sprint boards, milestone tracking, and team assignees.',
-      status: 'Ready for Phase 2',
+      color: 'bg-blue-50 text-blue-600',
+      description: 'Owner-scoped workspaces, deliverable tracking, status workflows, and team boards.',
+      status: 'Active Module',
     },
     {
       title: 'Meetings & Minutes',
       icon: Users,
-      color: 'from-purple-500 to-pink-600',
+      color: 'bg-purple-50 text-purple-600',
       description: 'Structured agendas, action item assignment, meeting transcripts, and sync notes.',
-      status: 'Ready for Phase 2',
+      status: 'Preview Module',
     },
     {
       title: 'Integrated Calendar',
       icon: Calendar,
-      color: 'from-emerald-500 to-teal-600',
+      color: 'bg-amber-50 text-amber-600',
       description: 'Event scheduling, sprint timelines, deadline alerts, and bi-directional date sync.',
-      status: 'Ready for Phase 2',
+      status: 'Preview Module',
     },
     {
       title: 'Knowledge Base',
       icon: BookOpen,
-      color: 'from-amber-500 to-orange-600',
-      description: 'Markdown documentation, full-text search, version history, and team wikis.',
-      status: 'Ready for Phase 2',
+      color: 'bg-pink-50 text-pink-600',
+      description: 'Markdown documentation, full-text search, architecture specifications, and team wikis.',
+      status: 'Preview Module',
     },
   ];
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] bg-radial from-indigo-950/20 via-slate-950 to-slate-950 py-10 px-4 sm:px-6 lg:px-8">
+    <div className="min-h-[calc(100vh-4rem)] bg-slate-50 py-10 px-4 sm:px-6 lg:px-8">
       <div className="max-w-7xl mx-auto space-y-10">
         {/* Hero Section */}
-        <div className="relative overflow-hidden rounded-3xl border border-slate-800/80 bg-gradient-to-b from-slate-900/90 to-slate-950/90 p-8 sm:p-12 shadow-2xl backdrop-blur-xl">
-          <div className="absolute -right-20 -top-20 w-80 h-80 bg-indigo-500/10 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute -left-20 -bottom-20 w-80 h-80 bg-purple-500/10 rounded-full blur-3xl pointer-events-none" />
-
+        <div className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-8 sm:p-12 shadow-xs">
           <div className="relative z-10 max-w-3xl space-y-4">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 text-xs font-medium">
-              <span className="w-2 h-2 rounded-full bg-indigo-400 animate-ping" />
-              Phase 1 Milestone Complete
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-semibold">
+              <span className="w-2 h-2 rounded-full bg-indigo-600 animate-ping" />
+              Full-Stack Workspace Platform
             </div>
-            <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-white leading-tight">
+            <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-slate-900 leading-tight">
               Projects, Meetings, Calendar, <br />
-              <span className="bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400 bg-clip-text text-transparent">
+              <span className="text-indigo-600">
                 Knowledge Base Platform
               </span>
             </h1>
-            <p className="text-slate-400 text-sm sm:text-base leading-relaxed">
-              Phase 1 establishes the production architecture: decoupled Express API with PostgreSQL connection pooling, JWT security scaffolding, and an independent React 18 + Vite frontend styled with Tailwind CSS v4.
+            <p className="text-slate-600 text-sm sm:text-base leading-relaxed">
+              PMCKB integrates decoupled Express APIs with PostgreSQL (Neon Serverless), JWT security, project management, tasks breakdown, team member dispatch, and deliverable discussions in a modern SaaS interface.
             </p>
 
             <div className="pt-2 flex flex-wrap items-center gap-3">
               <button
                 onClick={checkServices}
                 disabled={loading}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 active:bg-indigo-700 text-white font-medium text-sm transition-all shadow-lg shadow-indigo-600/30 cursor-pointer disabled:opacity-50"
+                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white font-medium text-sm transition-all shadow-xs cursor-pointer disabled:opacity-50"
               >
                 <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
                 <span>{loading ? 'Testing System...' : 'Ping Backend & Database'}</span>
@@ -138,7 +132,7 @@ export default function HomePage({ onStatusUpdate }) {
                 href="http://localhost:5000/api/health"
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-sm font-medium border border-slate-700/60 transition-colors"
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium border border-slate-200 transition-colors shadow-2xs"
               >
                 <span>Direct API Health JSON</span>
                 <ExternalLink className="w-3.5 h-3.5 text-slate-400" />
@@ -150,9 +144,9 @@ export default function HomePage({ onStatusUpdate }) {
         {/* Live Status Cards Grid */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Card 1: Backend Service */}
-          <div className="glass-card glass-card-hover rounded-2xl p-6 relative overflow-hidden">
+          <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs hover:shadow-md hover:border-slate-300 transition-all">
             <div className="flex items-center justify-between mb-4">
-              <div className="w-10 h-10 rounded-xl bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400">
+              <div className="w-10 h-10 rounded-xl bg-indigo-50 border border-indigo-100 flex items-center justify-center text-indigo-600">
                 <Server className="w-5 h-5" />
               </div>
               <StatusBadge
@@ -160,29 +154,29 @@ export default function HomePage({ onStatusUpdate }) {
                 label={backendHealth ? 'ONLINE' : error ? 'OFFLINE' : 'CHECKING'}
               />
             </div>
-            <h3 className="text-lg font-semibold text-white">Express Backend</h3>
-            <p className="text-xs text-slate-400 mt-1 mb-4">
+            <h3 className="text-lg font-semibold text-slate-900">Express Backend</h3>
+            <p className="text-xs text-slate-500 mt-1 mb-4">
               Node.js REST API with CORS, JWT middleware & modular routing.
             </p>
 
-            <div className="space-y-2 text-xs border-t border-slate-800 pt-3">
-              <div className="flex justify-between text-slate-400">
+            <div className="space-y-2 text-xs border-t border-slate-100 pt-3">
+              <div className="flex justify-between text-slate-600">
                 <span>Base URL:</span>
-                <span className="font-mono text-slate-300">http://localhost:5000</span>
+                <span className="font-mono text-slate-800">http://localhost:5000</span>
               </div>
-              <div className="flex justify-between text-slate-400">
+              <div className="flex justify-between text-slate-600">
                 <span>Health Endpoint:</span>
-                <span className="font-mono text-indigo-400">/api/health</span>
+                <span className="font-mono text-indigo-600">/api/health</span>
               </div>
-              <div className="flex justify-between text-slate-400">
+              <div className="flex justify-between text-slate-600">
                 <span>Latency:</span>
-                <span className="font-mono text-slate-200">
+                <span className="font-mono text-slate-800">
                   {latency !== null ? `${latency} ms` : '—'}
                 </span>
               </div>
-              <div className="flex justify-between text-slate-400">
+              <div className="flex justify-between text-slate-600">
                 <span>Uptime:</span>
-                <span className="font-mono text-slate-200">
+                <span className="font-mono text-slate-800">
                   {backendHealth?.data?.uptimeSeconds !== undefined
                     ? `${backendHealth.data.uptimeSeconds}s`
                     : '—'}
@@ -192,9 +186,9 @@ export default function HomePage({ onStatusUpdate }) {
           </div>
 
           {/* Card 2: PostgreSQL Database */}
-          <div className="glass-card glass-card-hover rounded-2xl p-6 relative overflow-hidden">
+          <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs hover:shadow-md hover:border-slate-300 transition-all">
             <div className="flex items-center justify-between mb-4">
-              <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-400">
+              <div className="w-10 h-10 rounded-xl bg-purple-50 border border-purple-100 flex items-center justify-center text-purple-600">
                 <Database className="w-5 h-5" />
               </div>
               <StatusBadge
@@ -210,66 +204,66 @@ export default function HomePage({ onStatusUpdate }) {
                 }
               />
             </div>
-            <h3 className="text-lg font-semibold text-white">PostgreSQL Pool</h3>
-            <p className="text-xs text-slate-400 mt-1 mb-4">
+            <h3 className="text-lg font-semibold text-slate-900">PostgreSQL Pool</h3>
+            <p className="text-xs text-slate-500 mt-1 mb-4">
               Connection pool (`pg`) with non-blocking error guards & retries.
             </p>
 
-            <div className="space-y-2 text-xs border-t border-slate-800 pt-3">
-              <div className="flex justify-between text-slate-400">
+            <div className="space-y-2 text-xs border-t border-slate-100 pt-3">
+              <div className="flex justify-between text-slate-600">
                 <span>Target DB:</span>
-                <span className="font-mono text-slate-300">
+                <span className="font-mono text-slate-800">
                   {backendHealth?.data?.database?.details?.config?.database || 'projects_db'}
                 </span>
               </div>
-              <div className="flex justify-between text-slate-400">
+              <div className="flex justify-between text-slate-600">
                 <span>Host:</span>
-                <span className="font-mono text-slate-300">
+                <span className="font-mono text-slate-800 truncate max-w-[140px]">
                   {backendHealth?.data?.database?.details?.config?.host || 'localhost:5432'}
                 </span>
               </div>
-              <div className="flex justify-between text-slate-400">
+              <div className="flex justify-between text-slate-600">
                 <span>Pool Status:</span>
-                <span className={backendHealth?.data?.database?.status === 'connected' ? 'text-emerald-400 font-mono' : 'text-amber-400 font-mono'}>
+                <span className={backendHealth?.data?.database?.status === 'connected' ? 'text-emerald-700 font-mono font-semibold' : 'text-amber-700 font-mono'}>
                   {backendHealth?.data?.database?.status || 'Awaiting connection'}
                 </span>
               </div>
-              <div className="flex justify-between text-slate-400">
+              <div className="flex justify-between text-slate-600">
                 <span>Diagnostic:</span>
-                <span className="font-mono text-slate-400">npm run db:test</span>
+                <span className="font-mono text-slate-500">npm run db:test</span>
               </div>
             </div>
           </div>
 
           {/* Card 3: Frontend Client */}
-          <div className="glass-card glass-card-hover rounded-2xl p-6 relative overflow-hidden">
+          <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs hover:shadow-md hover:border-slate-300 transition-all">
             <div className="flex items-center justify-between mb-4">
-              <div className="w-10 h-10 rounded-xl bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center text-cyan-400">
+              <div className="w-10 h-10 rounded-xl bg-blue-50 border border-blue-100 flex items-center justify-center text-blue-600">
                 <Cpu className="w-5 h-5" />
               </div>
               <StatusBadge status="online" label="RUNNING" />
             </div>
-            <h3 className="text-lg font-semibold text-white">React + Vite Client</h3>
-            <p className="text-xs text-slate-400 mt-1 mb-4">
+            <h3 className="text-lg font-semibold text-slate-900">React + Vite Client</h3>
+            <p className="text-xs text-slate-500 mt-1 mb-4">
               Runs independently with Axios client, Tailwind CSS & Router.
             </p>
 
-            <div className="space-y-2 text-xs border-t border-slate-800 pt-3">
-              <div className="flex justify-between text-slate-400">
+            <div className="space-y-2 text-xs border-t border-slate-100 pt-3">
+              <div className="flex justify-between text-slate-600">
                 <span>Vite Dev Port:</span>
-                <span className="font-mono text-slate-300">5173</span>
+                <span className="font-mono text-slate-800">5174</span>
               </div>
-              <div className="flex justify-between text-slate-400">
+              <div className="flex justify-between text-slate-600">
                 <span>Styling Engine:</span>
-                <span className="font-mono text-cyan-400">Tailwind CSS v4</span>
+                <span className="font-mono text-indigo-600">Tailwind CSS v4</span>
               </div>
-              <div className="flex justify-between text-slate-400">
-                <span>Routing:</span>
-                <span className="font-mono text-slate-300">React Router DOM</span>
+              <div className="flex justify-between text-slate-600">
+                <span>Theme:</span>
+                <span className="font-mono text-slate-800">Professional Light</span>
               </div>
-              <div className="flex justify-between text-slate-400">
+              <div className="flex justify-between text-slate-600">
                 <span>Mode:</span>
-                <span className="font-mono text-emerald-400">Fully Independent</span>
+                <span className="font-mono text-emerald-700 font-semibold">Fully Independent</span>
               </div>
             </div>
           </div>
@@ -277,16 +271,16 @@ export default function HomePage({ onStatusUpdate }) {
 
         {/* Diagnostic Alert if Backend is Offline */}
         {error && (
-          <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 p-5 flex items-start gap-4">
-            <AlertCircle className="w-5 h-5 text-rose-400 shrink-0 mt-0.5" />
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 p-5 flex items-start gap-4">
+            <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
             <div className="space-y-1 text-sm">
-              <h4 className="font-semibold text-rose-300">Backend Server Not Responding</h4>
-              <p className="text-rose-200/80 text-xs leading-relaxed">
-                The frontend is running independently, but the backend at <code className="bg-rose-950/60 px-1.5 py-0.5 rounded text-rose-200">http://localhost:5000</code> is currently unreachable.
+              <h4 className="font-semibold text-rose-700">Backend Server Not Responding</h4>
+              <p className="text-rose-600 text-xs leading-relaxed">
+                The frontend is running independently, but the backend at <code className="bg-rose-100 px-1.5 py-0.5 rounded text-rose-800">http://localhost:5000</code> is currently unreachable.
                 Start the backend in another terminal window with:
               </p>
               <div className="pt-2">
-                <code className="px-3 py-1.5 rounded-lg bg-rose-950 border border-rose-800/60 font-mono text-xs text-rose-100">
+                <code className="px-3 py-1.5 rounded-lg bg-white border border-rose-200 font-mono text-xs text-rose-800">
                   cd backend && npm run dev
                 </code>
               </div>
@@ -296,34 +290,34 @@ export default function HomePage({ onStatusUpdate }) {
 
         {/* Architecture & Live Diagnostics Tabs */}
         <div className="space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+          <div className="flex items-center justify-between border-b border-slate-200 pb-3">
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setActiveTab('overview')}
                 className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors cursor-pointer ${
                   activeTab === 'overview'
-                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                 }`}
               >
-                Module Scaffolding (Phase 2+)
+                Module Overview
               </button>
               <button
                 onClick={() => setActiveTab('commands')}
                 className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors cursor-pointer ${
                   activeTab === 'commands'
-                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                 }`}
               >
-                Manual Testing Cheatsheet
+                Setup Cheatsheet
               </button>
               <button
                 onClick={() => setActiveTab('json')}
                 className={`px-4 py-2 rounded-xl text-sm font-medium transition-colors cursor-pointer ${
                   activeTab === 'json'
-                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/20'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+                    ? 'bg-indigo-600 text-white shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100'
                 }`}
               >
                 Raw API Payload
@@ -339,18 +333,18 @@ export default function HomePage({ onStatusUpdate }) {
                 return (
                   <div
                     key={idx}
-                    className="glass-card glass-card-hover rounded-2xl p-5 flex flex-col justify-between border border-slate-800/80"
+                    className="bg-white rounded-2xl p-5 flex flex-col justify-between border border-slate-200 shadow-xs hover:border-slate-300 hover:shadow-md transition-all"
                   >
                     <div>
-                      <div className={`w-10 h-10 rounded-xl bg-gradient-to-tr ${mod.color} flex items-center justify-center text-white mb-3 shadow-md`}>
+                      <div className={`w-10 h-10 rounded-xl ${mod.color} flex items-center justify-center mb-3 shadow-2xs`}>
                         <Icon className="w-5 h-5" />
                       </div>
-                      <h4 className="text-base font-semibold text-white mb-1">{mod.title}</h4>
-                      <p className="text-xs text-slate-400 leading-relaxed mb-4">{mod.description}</p>
+                      <h4 className="text-base font-semibold text-slate-900 mb-1">{mod.title}</h4>
+                      <p className="text-xs text-slate-500 leading-relaxed mb-4">{mod.description}</p>
                     </div>
-                    <div className="pt-3 border-t border-slate-800/80 flex items-center justify-between text-xs">
-                      <span className="text-indigo-400 font-medium">{mod.status}</span>
-                      <span className="text-slate-600">Phase 2</span>
+                    <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                      <span className="text-indigo-600 font-medium">{mod.status}</span>
+                      <span className="text-slate-400">PMCKB</span>
                     </div>
                   </div>
                 );
@@ -358,14 +352,14 @@ export default function HomePage({ onStatusUpdate }) {
             </div>
           )}
 
-          {/* Tab 2: Manual Testing Cheatsheet */}
+          {/* Tab 2: Commands Cheatsheet */}
           {activeTab === 'commands' && (
-            <div className="glass-card rounded-2xl p-6 border border-slate-800/80 space-y-4">
+            <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs space-y-4">
               <div className="flex items-center gap-2 mb-2">
-                <Terminal className="w-5 h-5 text-indigo-400" />
-                <h3 className="text-base font-semibold text-white">Manual Verification Commands</h3>
+                <Terminal className="w-5 h-5 text-indigo-600" />
+                <h3 className="text-base font-semibold text-slate-900">Verification & Setup Commands</h3>
               </div>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-500">
                 You can run these commands from your root terminal to test each part of the system:
               </p>
 
@@ -373,22 +367,22 @@ export default function HomePage({ onStatusUpdate }) {
                 {commands.map((item, idx) => (
                   <div
                     key={idx}
-                    className="p-4 rounded-xl bg-slate-900/90 border border-slate-800 flex flex-col justify-between"
+                    className="p-4 rounded-xl bg-slate-50 border border-slate-200 flex flex-col justify-between"
                   >
                     <div className="mb-2">
-                      <span className="text-xs font-medium text-indigo-300">{item.title}</span>
+                      <span className="text-xs font-semibold text-slate-700">{item.title}</span>
                     </div>
-                    <div className="flex items-center justify-between bg-slate-950 px-3 py-2 rounded-lg border border-slate-800/70">
-                      <code className="text-xs font-mono text-slate-200 truncate mr-2">
+                    <div className="flex items-center justify-between bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-2xs">
+                      <code className="text-xs font-mono text-slate-800 truncate mr-2">
                         {item.cmd}
                       </code>
                       <button
                         onClick={() => copyCommand(item.cmd, idx)}
-                        className="p-1.5 rounded text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+                        className="p-1.5 rounded text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
                         title="Copy command"
                       >
                         {copiedIndex === idx ? (
-                          <Check className="w-3.5 h-3.5 text-emerald-400" />
+                          <Check className="w-3.5 h-3.5 text-emerald-600" />
                         ) : (
                           <Copy className="w-3.5 h-3.5" />
                         )}
@@ -402,14 +396,14 @@ export default function HomePage({ onStatusUpdate }) {
 
           {/* Tab 3: Raw API Payload */}
           {activeTab === 'json' && (
-            <div className="glass-card rounded-2xl p-6 border border-slate-800/80 space-y-4">
+            <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs space-y-4">
               <div className="flex items-center justify-between">
-                <span className="text-xs font-mono text-slate-400">GET /api/health Response</span>
-                <span className="text-xs text-slate-500">
+                <span className="text-xs font-mono text-slate-600">GET /api/health Response</span>
+                <span className="text-xs text-slate-400">
                   {backendHealth ? 'Live Payload' : 'No response'}
                 </span>
               </div>
-              <pre className="p-4 rounded-xl bg-slate-950 border border-slate-800 font-mono text-xs text-indigo-300 overflow-x-auto max-h-96">
+              <pre className="p-4 rounded-xl bg-slate-50 border border-slate-200 font-mono text-xs text-slate-800 overflow-x-auto max-h-96">
                 {backendHealth
                   ? JSON.stringify(backendHealth, null, 2)
                   : error

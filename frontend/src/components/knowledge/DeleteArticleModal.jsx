@@ -1,7 +1,13 @@
 import React from 'react';
 import { AlertTriangle, Loader2 } from 'lucide-react';
 
-export default function DeleteConfirmModal({ isOpen, onClose, onConfirm, projectName = '', loading = false }) {
+export default function DeleteArticleModal({
+  isOpen,
+  onClose,
+  onConfirm,
+  articleTitle = '',
+  loading = false,
+}) {
   if (!isOpen) return null;
 
   return (
@@ -12,9 +18,9 @@ export default function DeleteConfirmModal({ isOpen, onClose, onConfirm, project
         </div>
 
         <div className="text-center space-y-2">
-          <h3 className="text-lg font-bold text-slate-900">Delete Project</h3>
+          <h3 className="text-lg font-bold text-slate-900">Delete Knowledge Article</h3>
           <p className="text-xs text-slate-600 leading-relaxed">
-            Are you sure you want to permanently delete <strong className="text-slate-900">"{projectName}"</strong>? This action cannot be undone and will remove all associated deliverables and comments.
+            Are you sure you want to permanently delete <strong className="text-slate-900">"{articleTitle}"</strong>? This action cannot be undone.
           </p>
         </div>
 
@@ -34,7 +40,7 @@ export default function DeleteConfirmModal({ isOpen, onClose, onConfirm, project
             className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white text-xs font-medium transition-all shadow-xs flex items-center gap-2 cursor-pointer disabled:opacity-50"
           >
             {loading && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-            <span>Delete Project</span>
+            <span>Delete Article</span>
           </button>
         </div>
       </div>
