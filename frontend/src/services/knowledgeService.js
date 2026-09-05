@@ -2,44 +2,56 @@ import api from './api';
 
 export const knowledgeService = {
   // Categories
-  getCategories: () => {
-    return api.get('/api/kb/categories');
+  getCategories: async () => {
+    const res = await api.get('/api/kb/categories');
+    return res.data;
   },
 
-  getCategory: (id) => {
-    return api.get(`/api/kb/categories/${id}`);
+  getCategory: async (id) => {
+    const res = await api.get(`/api/kb/categories/${id}`);
+    return res.data;
   },
 
-  createCategory: (data) => {
-    return api.post('/api/kb/categories', data);
+  createCategory: async (data) => {
+    const res = await api.post('/api/kb/categories', data);
+    return res.data;
   },
 
-  updateCategory: (id, data) => {
-    return api.put(`/api/kb/categories/${id}`, data);
+  updateCategory: async (id, data) => {
+    const res = await api.put(`/api/kb/categories/${id}`, data);
+    return res.data;
   },
 
-  deleteCategory: (id) => {
-    return api.delete(`/api/kb/categories/${id}`);
+  deleteCategory: async (id) => {
+    const res = await api.delete(`/api/kb/categories/${id}`);
+    return res.data;
   },
 
   // Articles
-  getArticles: (params = {}) => {
-    return api.get('/api/kb/articles', { params });
+  getArticles: async (params = {}) => {
+    const res = await api.get('/api/kb/articles', { params });
+    return res.data;
   },
 
-  getArticle: (id) => {
-    return api.get(`/api/kb/articles/${id}`);
+  getArticle: async (id) => {
+    const res = await api.get(`/api/kb/articles/${id}`);
+    return res.data;
   },
 
-  createArticle: (data) => {
-    return api.post('/api/kb/articles', data);
+  createArticle: async (data) => {
+    const res = await api.post('/api/kb/articles', data);
+    return res.data;
   },
 
-  updateArticle: (id, data) => {
-    return api.put(`/api/kb/articles/${id}`, data);
+  updateArticle: async (id, data) => {
+    const res = await api.put(`/api/kb/articles/${id}`, data);
+    return res.data;
   },
 
-  deleteArticle: (id) => {
-    return api.delete(`/api/kb/articles/${id}`);
+  deleteArticle: async (id) => {
+    const res = await api.delete(`/api/kb/articles/${id}`);
+    return res.data;
   },
 };
+
+export default knowledgeService;

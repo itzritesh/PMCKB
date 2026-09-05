@@ -2,57 +2,72 @@ import api from './api';
 
 export const meetingService = {
   // Meetings CRUD
-  getMeetings: (params = {}) => {
-    return api.get('/api/meetings', { params });
+  getMeetings: async (params = {}) => {
+    const res = await api.get('/api/meetings', { params });
+    return res.data;
   },
 
-  getMeeting: (id) => {
-    return api.get(`/api/meetings/${id}`);
+  getMeeting: async (id) => {
+    const res = await api.get(`/api/meetings/${id}`);
+    return res.data;
   },
 
-  createMeeting: (data) => {
-    return api.post('/api/meetings', data);
+  createMeeting: async (data) => {
+    const res = await api.post('/api/meetings', data);
+    return res.data;
   },
 
-  updateMeeting: (id, data) => {
-    return api.put(`/api/meetings/${id}`, data);
+  updateMeeting: async (id, data) => {
+    const res = await api.put(`/api/meetings/${id}`, data);
+    return res.data;
   },
 
-  deleteMeeting: (id) => {
-    return api.delete(`/api/meetings/${id}`);
+  deleteMeeting: async (id) => {
+    const res = await api.delete(`/api/meetings/${id}`);
+    return res.data;
   },
 
   // Attendees
-  getAttendees: (meetingId) => {
-    return api.get(`/api/meetings/${meetingId}/attendees`);
+  getAttendees: async (meetingId) => {
+    const res = await api.get(`/api/meetings/${meetingId}/attendees`);
+    return res.data;
   },
 
-  addAttendee: (meetingId, data) => {
-    return api.post(`/api/meetings/${meetingId}/attendees`, data);
+  addAttendee: async (meetingId, data) => {
+    const res = await api.post(`/api/meetings/${meetingId}/attendees`, data);
+    return res.data;
   },
 
-  updateAttendeeResponse: (meetingId, userId, data) => {
-    return api.put(`/api/meetings/${meetingId}/attendees/${userId}`, data);
+  updateAttendeeResponse: async (meetingId, userId, data) => {
+    const res = await api.put(`/api/meetings/${meetingId}/attendees/${userId}`, data);
+    return res.data;
   },
 
-  removeAttendee: (meetingId, userId) => {
-    return api.delete(`/api/meetings/${meetingId}/attendees/${userId}`);
+  removeAttendee: async (meetingId, userId) => {
+    const res = await api.delete(`/api/meetings/${meetingId}/attendees/${userId}`);
+    return res.data;
   },
 
   // Minutes
-  getMinutes: (meetingId) => {
-    return api.get(`/api/meetings/${meetingId}/minutes`);
+  getMinutes: async (meetingId) => {
+    const res = await api.get(`/api/meetings/${meetingId}/minutes`);
+    return res.data;
   },
 
-  createMinutes: (meetingId, data) => {
-    return api.post(`/api/meetings/${meetingId}/minutes`, data);
+  createMinutes: async (meetingId, data) => {
+    const res = await api.post(`/api/meetings/${meetingId}/minutes`, data);
+    return res.data;
   },
 
-  updateMinutes: (meetingId, data) => {
-    return api.put(`/api/meetings/${meetingId}/minutes`, data);
+  updateMinutes: async (meetingId, data) => {
+    const res = await api.put(`/api/meetings/${meetingId}/minutes`, data);
+    return res.data;
   },
 
-  deleteMinutes: (meetingId) => {
-    return api.delete(`/api/meetings/${meetingId}/minutes`);
+  deleteMinutes: async (meetingId) => {
+    const res = await api.delete(`/api/meetings/${meetingId}/minutes`);
+    return res.data;
   },
 };
+
+export default meetingService;

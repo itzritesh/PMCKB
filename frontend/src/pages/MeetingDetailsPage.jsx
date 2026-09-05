@@ -67,18 +67,20 @@ export default function MeetingDetailsPage() {
         userService.getUsers().catch(() => ({ data: { users: [] } })),
       ]);
 
-      const m = resMeeting.data.meeting;
-      setMeeting(m);
-      setAllUsers(resUsers.data.users || []);
-
-      if (m.minutes) {
-        setMinutesForm({
-          summary: m.minutes.summary || '',
-          discussion: m.minutes.discussion || '',
-          decisions: m.minutes.decisions || '',
-          action_items: m.minutes.action_items || '',
-        });
+      const m = resMeeting?.data?.meeting || resMeeting?.meeting || resMeeting?.data;
+      if (m) {
+        setMeeting(m);
+        if (m.minutes) {
+          setMinutesForm({
+            summary: m.minutes.summary || '',
+            discussion: m.minutes.discussion || '',
+            decisions: m.minutes.decisions || '',
+            action_items: m.minutes.action_items || '',
+          });
+        }
       }
+      const uList = resUsers?.data?.users || resUsers?.users || resUsers?.data || [];
+      setAllUsers(Array.isArray(uList) ? uList.filter(Boolean) : []);
     } catch (err) {
       setError(err.message || 'Failed to load meeting.');
     } finally {
@@ -94,7 +96,12 @@ export default function MeetingDetailsPage() {
     setSubmittingMeeting(true);
     try {
       const res = await meetingService.updateMeeting(id, formData);
-      setMeeting((prev) => ({ ...prev, ...res.data.meeting }));
+      const updated = res?.data?.meeting || res?.meeting || res?.data;
+      if (updated) {
+        setMeeting((prev) => ({ ...prev, ...updated }));
+      } else {
+        fetchMeeting();
+      }
       setEditModalOpen(false);
     } catch (err) {
       throw err;

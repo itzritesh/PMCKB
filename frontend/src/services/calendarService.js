@@ -1,23 +1,30 @@
 import api from './api';
 
 export const calendarService = {
-  getEvents: (params = {}) => {
-    return api.get('/api/calendar/events', { params });
+  getEvents: async (params = {}) => {
+    const res = await api.get('/api/calendar/events', { params });
+    return res.data;
   },
 
-  getEvent: (id) => {
-    return api.get(`/api/calendar/events/${id}`);
+  getEvent: async (id) => {
+    const res = await api.get(`/api/calendar/events/${id}`);
+    return res.data;
   },
 
-  createEvent: (data) => {
-    return api.post('/api/calendar/events', data);
+  createEvent: async (data) => {
+    const res = await api.post('/api/calendar/events', data);
+    return res.data;
   },
 
-  updateEvent: (id, data) => {
-    return api.put(`/api/calendar/events/${id}`, data);
+  updateEvent: async (id, data) => {
+    const res = await api.put(`/api/calendar/events/${id}`, data);
+    return res.data;
   },
 
-  deleteEvent: (id) => {
-    return api.delete(`/api/calendar/events/${id}`);
+  deleteEvent: async (id) => {
+    const res = await api.delete(`/api/calendar/events/${id}`);
+    return res.data;
   },
 };
+
+export default calendarService;

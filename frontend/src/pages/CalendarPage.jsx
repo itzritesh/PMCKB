@@ -50,9 +50,13 @@ export default function CalendarPage() {
         meetingService.getMeetings().catch(() => ({ data: { meetings: [] } })),
       ]);
 
-      setEvents(eventsRes.data.events || []);
-      setTasks((tasksRes.data.tasks || []).filter((t) => t.due_date));
-      setMeetings(meetingsRes.data.meetings || []);
+      const evList = eventsRes?.data?.events || eventsRes?.events || eventsRes?.data || [];
+      const tList = tasksRes?.data?.tasks || tasksRes?.tasks || tasksRes?.data || [];
+      const mList = meetingsRes?.data?.meetings || meetingsRes?.meetings || meetingsRes?.data || [];
+
+      setEvents(Array.isArray(evList) ? evList.filter(Boolean) : []);
+      setTasks((Array.isArray(tList) ? tList.filter(Boolean) : []).filter((t) => t.due_date));
+      setMeetings(Array.isArray(mList) ? mList.filter(Boolean) : []);
     } catch (err) {
       setError(err.message || 'Failed to load calendar data.');
     } finally {
@@ -79,12 +83,22 @@ export default function CalendarPage() {
     try {
       if (editingEvent) {
         const res = await calendarService.updateEvent(editingEvent.id, formData);
-        setEvents((prev) =>
-          prev.map((e) => (e.id === editingEvent.id ? res.data.event : e))
-        );
+        const updated = res?.data?.event || res?.event || res?.data;
+        if (updated && updated.id) {
+          setEvents((prev) =>
+            prev.map((e) => (e && e.id === editingEvent.id ? updated : e)).filter(Boolean)
+          );
+        } else {
+          fetchData();
+        }
       } else {
         const res = await calendarService.createEvent(formData);
-        setEvents((prev) => [...prev, res.data.event]);
+        const created = res?.data?.event || res?.event || res?.data;
+        if (created && created.id) {
+          setEvents((prev) => [...prev.filter(Boolean), created]);
+        } else {
+          fetchData();
+        }
       }
       setModalOpen(false);
     } catch (err) {

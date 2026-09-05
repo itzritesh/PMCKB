@@ -42,11 +42,13 @@ export default function ArticleDetailsPage() {
         knowledgeService.getArticle(id),
         knowledgeService.getCategories(),
       ]);
-      setArticle(artRes.data.article);
-      setCategories(catRes.data.categories || []);
+      const art = artRes?.data?.article || artRes?.article || artRes?.data;
+      const cList = catRes?.data?.categories || catRes?.categories || catRes?.data || [];
+      setArticle(art || null);
+      setCategories(Array.isArray(cList) ? cList.filter(Boolean) : []);
     } catch (err) {
       console.error('Failed to load article:', err);
-      setError(err.response?.data?.error || 'Failed to load article details.');
+      setError(err.message || 'Failed to load article details.');
     } finally {
       setLoading(false);
     }

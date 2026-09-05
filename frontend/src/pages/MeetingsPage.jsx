@@ -47,7 +47,8 @@ export default function MeetingsPage() {
     setError(null);
     try {
       const res = await meetingService.getMeetings({ status: statusFilter });
-      setMeetings(res.data.meetings || []);
+      const list = res?.data?.meetings || res?.meetings || res?.data || [];
+      setMeetings(Array.isArray(list) ? list.filter(Boolean) : []);
     } catch (err) {
       setError(err.message || 'Failed to load meetings.');
     } finally {
@@ -74,12 +75,22 @@ export default function MeetingsPage() {
     try {
       if (editingMeeting) {
         const res = await meetingService.updateMeeting(editingMeeting.id, formData);
-        setMeetings((prev) =>
-          prev.map((m) => (m.id === editingMeeting.id ? res.data.meeting : m))
-        );
+        const updated = res?.data?.meeting || res?.meeting || res?.data;
+        if (updated && updated.id) {
+          setMeetings((prev) =>
+            prev.map((m) => (m && m.id === editingMeeting.id ? updated : m)).filter(Boolean)
+          );
+        } else {
+          fetchMeetings();
+        }
       } else {
         const res = await meetingService.createMeeting(formData);
-        setMeetings((prev) => [res.data.meeting, ...prev]);
+        const created = res?.data?.meeting || res?.meeting || res?.data;
+        if (created && created.id) {
+          setMeetings((prev) => [created, ...prev.filter(Boolean)]);
+        } else {
+          fetchMeetings();
+        }
       }
       setModalOpen(false);
     } catch (err) {
@@ -253,8 +264,8 @@ export default function MeetingsPage() {
         {/* Meeting Cards */}
         {!loading && meetings.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {meetings.map((m) => {
-              const isOrganizer = user?.id === m.organizer_id;
+            {meetings.filter(Boolean).map((m) => {
+              const isOrganizer = user?.id === m?.organizer_id;
 
               return (
                 <div

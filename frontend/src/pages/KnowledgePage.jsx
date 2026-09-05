@@ -57,11 +57,13 @@ export default function KnowledgePage() {
           status: statusFilter !== 'all' ? statusFilter : undefined,
         }),
       ]);
-      setCategories(catRes.data.categories || []);
-      setArticles(artRes.data.articles || []);
+      const cList = catRes?.data?.categories || catRes?.categories || catRes?.data || [];
+      const aList = artRes?.data?.articles || artRes?.articles || artRes?.data || [];
+      setCategories(Array.isArray(cList) ? cList.filter(Boolean) : []);
+      setArticles(Array.isArray(aList) ? aList.filter(Boolean) : []);
     } catch (err) {
       console.error('Failed to load knowledge base data:', err);
-      setError(err.response?.data?.error || 'Failed to load knowledge base articles');
+      setError(err.message || 'Failed to load knowledge base articles');
     } finally {
       setLoading(false);
     }
