@@ -147,7 +147,7 @@ export default function SystemStatusPage({ onStatusUpdate }) {
                 <span>{loading ? 'Testing System...' : 'Ping Backend & Database'}</span>
               </button>
               <a
-                href="http://localhost:5000/api/health"
+                href={`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}/api/health`}
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium border border-slate-200 transition-colors shadow-2xs"

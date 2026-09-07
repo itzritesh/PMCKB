@@ -28,15 +28,32 @@ app.use(
   })
 );
 
+const path = require('path');
+const fs = require('fs');
+
 // Built-in body parsing middlewares
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// Root health-check / info endpoint
-app.get('/', getRootInfo);
-
 // Mount main API router under /api
 app.use('/api', apiRoutes);
+
+// In production, serve the frontend SPA build if frontend/dist exists
+const distPath = path.resolve(__dirname, '../../frontend/dist');
+const hasFrontendDist = fs.existsSync(distPath);
+
+if (env.NODE_ENV === 'production' && hasFrontendDist) {
+  app.use(express.static(distPath));
+  app.get('*', (req, res, next) => {
+    if (req.path.startsWith('/api')) {
+      return next();
+    }
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+} else {
+  // Root health-check / info endpoint in development or standalone API mode
+  app.get('/', getRootInfo);
+}
 
 // Catch-all 404 handler
 app.use(notFoundHandler);
