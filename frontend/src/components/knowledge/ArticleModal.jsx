@@ -1,10 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { X, BookOpen, Edit3, Loader2, AlertCircle, FileText } from 'lucide-react';
+import { knowledgeService } from '../../services/knowledgeService';
 
 export default function ArticleModal({
   isOpen,
   onClose,
   onSubmit,
+  onSaved,
   article = null,
   categories = [],
   loading = false,
@@ -51,12 +53,25 @@ export default function ArticleModal({
     }
 
     try {
-      await onSubmit({
+      const payload = {
         title: title.trim(),
         content: content.trim(),
         category_id: categoryId ? parseInt(categoryId, 10) : null,
         status,
-      });
+      };
+
+      if (typeof onSubmit === 'function') {
+        await onSubmit(payload);
+      } else {
+        if (isEditing) {
+          await knowledgeService.updateArticle(article.id, payload);
+        } else {
+          await knowledgeService.createArticle(payload);
+        }
+        if (typeof onSaved === 'function') {
+          onSaved();
+        }
+      }
       onClose();
     } catch (err) {
       setError(err.message || 'Failed to save article.');

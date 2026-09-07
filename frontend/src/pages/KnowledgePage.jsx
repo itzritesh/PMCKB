@@ -102,6 +102,17 @@ export default function KnowledgePage() {
     fetchData();
   };
 
+  const handleArticleSubmit = async (formData) => {
+    if (editingArticle) {
+      await knowledgeService.updateArticle(editingArticle.id, formData);
+    } else {
+      await knowledgeService.createArticle(formData);
+    }
+    setIsArticleModalOpen(false);
+    setEditingArticle(null);
+    fetchData();
+  };
+
   // Delete Article handlers
   const handleOpenDeleteArticle = (art, e) => {
     e.stopPropagation();
@@ -389,6 +400,7 @@ export default function KnowledgePage() {
           setIsArticleModalOpen(false);
           setEditingArticle(null);
         }}
+        onSubmit={handleArticleSubmit}
         onSaved={handleArticleSaved}
         article={editingArticle}
         categories={categories}
@@ -398,6 +410,8 @@ export default function KnowledgePage() {
       <CategoryModal
         isOpen={isCategoryModalOpen}
         onClose={() => setIsCategoryModalOpen(false)}
+        categories={categories}
+        onCategoriesChanged={fetchData}
         onChanged={fetchData}
       />
 

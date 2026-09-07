@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Tag, Edit3, Loader2, AlertCircle, Trash2, Plus } from 'lucide-react';
+import { X, Tag, Edit3, Loader2, AlertCircle, Trash2, Plus, CheckCircle2 } from 'lucide-react';
 import { knowledgeService } from '../../services/knowledgeService';
 
 export default function CategoryModal({
@@ -7,37 +7,109 @@ export default function CategoryModal({
   onClose,
   categories = [],
   onCategoriesChanged,
+  onChanged,
 }) {
+  const [localCategories, setLocalCategories] = useState(categories);
   const [newCatName, setNewCatName] = useState('');
   const [newCatDesc, setNewCatDesc] = useState('');
   const [creating, setCreating] = useState(false);
+  const [loadingList, setLoadingList] = useState(false);
   const [error, setError] = useState(null);
+  const [successMsg, setSuccessMsg] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
 
+  // Synchronize with passed categories or load directly
+  const loadCategories = async () => {
+    try {
+      setLoadingList(true);
+      const res = await knowledgeService.getCategories();
+      const list = res?.data?.categories || res?.categories || res?.data || [];
+      if (Array.isArray(list)) {
+        setLocalCategories(list);
+      }
+    } catch (err) {
+      console.warn('Failed to refresh categories:', err);
+    } finally {
+      setLoadingList(false);
+    }
+  };
+
   useEffect(() => {
-    setNewCatName('');
-    setNewCatDesc('');
-    setError(null);
+    if (isOpen) {
+      setNewCatName('');
+      setNewCatDesc('');
+      setError(null);
+      setSuccessMsg(null);
+      if (categories && categories.length > 0) {
+        setLocalCategories(categories);
+      }
+      loadCategories();
+    }
   }, [isOpen]);
 
+  useEffect(() => {
+    if (categories && categories.length > 0) {
+      setLocalCategories(categories);
+    }
+  }, [categories]);
+
   if (!isOpen) return null;
+
+  const notifyParent = () => {
+    if (typeof onCategoriesChanged === 'function') onCategoriesChanged();
+    if (typeof onChanged === 'function') onChanged();
+  };
+
+  // Client-side duplicate check (case-insensitive)
+  const trimmedName = newCatName.trim();
+  const isDuplicate = Boolean(
+    trimmedName &&
+      localCategories.some(
+        (c) => c.name && c.name.trim().toLowerCase() === trimmedName.toLowerCase()
+      )
+  );
 
   const handleCreateCategory = async (e) => {
     e.preventDefault();
     setError(null);
-    if (!newCatName.trim()) return;
+    setSuccessMsg(null);
+
+    if (!trimmedName) {
+      setError('Please enter a category name.');
+      return;
+    }
+
+    if (isDuplicate) {
+      setError(`A category named "${trimmedName}" already exists. Please choose a different name.`);
+      return;
+    }
+
+    if (creating) return;
 
     setCreating(true);
     try {
-      await knowledgeService.createCategory({
-        name: newCatName.trim(),
-        description: newCatDesc.trim(),
+      const res = await knowledgeService.createCategory({
+        name: trimmedName,
+        description: newCatDesc.trim() || undefined,
       });
+
+      const newCategory = res?.data?.category || res?.category || res?.data;
       setNewCatName('');
       setNewCatDesc('');
-      onCategoriesChanged();
+      setError(null);
+      setSuccessMsg(`Category "${trimmedName}" created successfully.`);
+      setTimeout(() => setSuccessMsg(null), 3000);
+
+      // Refresh list
+      await loadCategories();
+      notifyParent();
     } catch (err) {
-      setError(err.message || 'Failed to create category.');
+      console.warn('Category creation error:', err);
+      if (err.status === 409) {
+        setError(`A category named "${trimmedName}" already exists. Please choose a unique name.`);
+      } else {
+        setError(err.message || 'Failed to create category.');
+      }
     } finally {
       setCreating(false);
     }
@@ -45,11 +117,14 @@ export default function CategoryModal({
 
   const handleDeleteCategory = async (catId) => {
     setError(null);
+    setSuccessMsg(null);
     setDeletingId(catId);
     try {
       await knowledgeService.deleteCategory(catId);
-      onCategoriesChanged();
+      await loadCategories();
+      notifyParent();
     } catch (err) {
+      console.warn('Category deletion error:', err);
       setError(err.message || 'Failed to delete category.');
     } finally {
       setDeletingId(null);
@@ -83,6 +158,13 @@ export default function CategoryModal({
           </div>
         )}
 
+        {successMsg && (
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3.5 flex items-start gap-2.5">
+            <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+            <div className="text-xs text-emerald-700 font-medium">{successMsg}</div>
+          </div>
+        )}
+
         {/* Create Category Form */}
         <form onSubmit={handleCreateCategory} className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
           <span className="text-xs font-bold text-slate-800 block">Create New Category</span>
@@ -91,24 +173,40 @@ export default function CategoryModal({
               type="text"
               required
               value={newCatName}
-              onChange={(e) => setNewCatName(e.target.value)}
+              onChange={(e) => {
+                setNewCatName(e.target.value);
+                if (error) setError(null);
+                if (successMsg) setSuccessMsg(null);
+              }}
               placeholder="Category Name (e.g. DevOps & Infrastructure)"
-              className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-pink-500"
+              className={`w-full px-3.5 py-2 bg-white border rounded-xl text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none transition-colors ${
+                isDuplicate
+                  ? 'border-amber-400 focus:border-amber-500 focus:ring-1 focus:ring-amber-400'
+                  : 'border-slate-200 focus:border-pink-500 focus:ring-1 focus:ring-pink-400'
+              }`}
             />
+            {isDuplicate && (
+              <p className="text-[11px] text-amber-600 font-medium mt-1">
+                A category named "{trimmedName}" already exists.
+              </p>
+            )}
           </div>
           <div>
             <input
               type="text"
               value={newCatDesc}
-              onChange={(e) => setNewCatDesc(e.target.value)}
+              onChange={(e) => {
+                setNewCatDesc(e.target.value);
+                if (error) setError(null);
+              }}
               placeholder="Brief description (optional)..."
               className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-pink-500"
             />
           </div>
           <button
             type="submit"
-            disabled={creating || !newCatName.trim()}
-            className="w-full py-2 px-4 rounded-xl bg-pink-600 hover:bg-pink-700 text-white text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
+            disabled={creating || !trimmedName || isDuplicate}
+            className="w-full py-2.5 px-4 rounded-xl bg-pink-600 hover:bg-pink-700 text-white text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed transition-all"
           >
             {creating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
             <span>Add Category</span>
@@ -117,23 +215,26 @@ export default function CategoryModal({
 
         {/* Existing Categories List */}
         <div className="space-y-2">
-          <span className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
-            Existing Categories ({categories.length})
-          </span>
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold text-slate-700 uppercase tracking-wider block">
+              Existing Categories ({localCategories.length})
+            </span>
+            {loadingList && <Loader2 className="w-3 h-3 text-slate-400 animate-spin" />}
+          </div>
 
-          {categories.length === 0 ? (
+          {localCategories.length === 0 ? (
             <p className="text-xs text-slate-400 py-4 text-center">No categories created yet.</p>
           ) : (
             <div className="space-y-2 max-h-52 overflow-y-auto pr-1">
-              {categories.map((c) => (
+              {localCategories.map((c) => (
                 <div
                   key={c.id}
-                  className="p-3 rounded-xl bg-white border border-slate-200 flex items-center justify-between gap-3"
+                  className="p-3 rounded-xl bg-white border border-slate-200 flex items-center justify-between gap-3 hover:border-slate-300 transition-colors"
                 >
                   <div className="min-w-0">
                     <span className="text-xs font-bold text-slate-900 block truncate">{c.name}</span>
                     <span className="text-[11px] text-slate-400 block truncate">
-                      {c.article_count} {c.article_count === 1 ? 'article' : 'articles'}
+                      {c.article_count || 0} {(c.article_count === 1) ? 'article' : 'articles'}
                       {c.description ? ` • ${c.description}` : ''}
                     </span>
                   </div>
