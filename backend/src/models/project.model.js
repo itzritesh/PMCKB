@@ -2,100 +2,110 @@ const { query } = require('../config/db');
 
 /**
  * Project Data Access Model
- * All operations enforce owner_id isolation so users can only access their own projects.
+ * Team-isolated project access
  */
 const ProjectModel = {
   /**
-   * Create a new project for a user
-   * @param {object} params
-   * @param {string} params.name
-   * @param {string} [params.description]
-   * @param {string} [params.status='planning']
-   * @param {number|string} params.ownerId
-   * @returns {Promise<object>} Created project
+   * Create a new project for a team
    */
-  async create({ name, description = '', status = 'planning', ownerId }) {
+  async create({ name, description = '', status = 'planning', ownerId, teamId }) {
     const text = `
-      INSERT INTO projects (name, description, status, owner_id)
-      VALUES ($1, $2, $3, $4)
-      RETURNING id, name, description, status, owner_id, created_at, updated_at
+      INSERT INTO projects (name, description, status, owner_id, team_id)
+      VALUES ($1, $2, $3, $4, $5)
+      RETURNING id, name, description, status, owner_id, team_id, created_at, updated_at
     `;
-    const values = [name.trim(), description ? description.trim() : '', status, ownerId];
+    const values = [name.trim(), description ? description.trim() : '', status, ownerId, teamId];
     const res = await query(text, values);
     return res.rows[0];
   },
 
   /**
-   * Find all projects owned by a specific user
-   * @param {number|string} ownerId
-   * @returns {Promise<Array<object>>} List of projects sorted by latest first
+   * Find all projects belonging to the specified team that user has membership in
+   */
+  async findAllByTeam({ teamId, userId }) {
+    const text = `
+      SELECT p.id, p.name, p.description, p.status, p.owner_id, p.team_id, p.created_at, p.updated_at,
+             u.name AS owner_name, u.email AS owner_email,
+             tm.role AS user_role
+      FROM projects p
+      JOIN team_members tm ON tm.team_id = p.team_id
+      JOIN users u ON u.id = p.owner_id
+      WHERE p.team_id = $1 AND tm.user_id = $2
+      ORDER BY p.created_at DESC
+    `;
+    const res = await query(text, [teamId, userId]);
+    return res.rows;
+  },
+
+  /**
+   * Find all projects owned by a specific user (legacy compatibility fallback)
    */
   async findAllByOwner(ownerId) {
     const text = `
-      SELECT id, name, description, status, owner_id, created_at, updated_at
-      FROM projects
-      WHERE owner_id = $1
-      ORDER BY created_at DESC
+      SELECT p.id, p.name, p.description, p.status, p.owner_id, p.team_id, p.created_at, p.updated_at,
+             u.name AS owner_name, u.email AS owner_email
+      FROM projects p
+      JOIN users u ON u.id = p.owner_id
+      WHERE p.owner_id = $1
+      ORDER BY p.created_at DESC
     `;
     const res = await query(text, [ownerId]);
     return res.rows;
   },
 
   /**
-   * Find a specific project by ID ensuring ownership
-   * @param {number|string} id
-   * @param {number|string} ownerId
-   * @returns {Promise<object|null>} Project or null
+   * Find a specific project by ID ensuring team access
    */
-  async findByIdAndOwner(id, ownerId) {
+  async findByIdAndTeam(id, userId) {
     const text = `
-      SELECT id, name, description, status, owner_id, created_at, updated_at
-      FROM projects
-      WHERE id = $1 AND owner_id = $2
+      SELECT p.id, p.name, p.description, p.status, p.owner_id, p.team_id, p.created_at, p.updated_at,
+             u.name AS owner_name, u.email AS owner_email,
+             tm.role AS user_role
+      FROM projects p
+      JOIN team_members tm ON tm.team_id = p.team_id
+      JOIN users u ON u.id = p.owner_id
+      WHERE p.id = $1 AND tm.user_id = $2
       LIMIT 1
     `;
-    const res = await query(text, [id, ownerId]);
+    const res = await query(text, [id, userId]);
     return res.rows[0] || null;
   },
 
   /**
-   * Update an existing project owned by the user
-   * @param {object} params
-   * @param {number|string} params.id
-   * @param {number|string} params.ownerId
-   * @param {string} params.name
-   * @param {string} params.description
-   * @param {string} params.status
-   * @returns {Promise<object|null>} Updated project
+   * Legacy findByIdAndOwner for compatibility
    */
-  async update({ id, ownerId, name, description, status }) {
+  async findByIdAndOwner(id, ownerId) {
+    return this.findByIdAndTeam(id, ownerId);
+  },
+
+  /**
+   * Update project
+   */
+  async update({ id, name, description, status }) {
     const text = `
       UPDATE projects
       SET name = $1,
           description = $2,
           status = $3,
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $4 AND owner_id = $5
-      RETURNING id, name, description, status, owner_id, created_at, updated_at
+      WHERE id = $4
+      RETURNING id, name, description, status, owner_id, team_id, created_at, updated_at
     `;
-    const values = [name.trim(), description !== undefined ? description.trim() : '', status, id, ownerId];
+    const values = [name.trim(), description !== undefined ? description.trim() : '', status, id];
     const res = await query(text, values);
     return res.rows[0] || null;
   },
 
   /**
-   * Delete a project owned by the user
-   * @param {number|string} id
-   * @param {number|string} ownerId
-   * @returns {Promise<boolean>} True if deleted, false if not found
+   * Delete a project
    */
-  async delete(id, ownerId) {
+  async delete(id) {
     const text = `
       DELETE FROM projects
-      WHERE id = $1 AND owner_id = $2
+      WHERE id = $1
       RETURNING id
     `;
-    const res = await query(text, [id, ownerId]);
+    const res = await query(text, [id]);
     return res.rowCount > 0;
   },
 };

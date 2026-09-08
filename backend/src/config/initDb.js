@@ -178,11 +178,12 @@ async function initDb() {
     -- Knowledge Base Categories Table
     CREATE TABLE IF NOT EXISTS kb_categories (
       id SERIAL PRIMARY KEY,
-      name VARCHAR(255) NOT NULL UNIQUE,
+      name VARCHAR(255) NOT NULL,
       description TEXT,
       created_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
       team_id INTEGER REFERENCES teams(id) ON DELETE CASCADE,
-      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      CONSTRAINT kb_categories_team_name_unique UNIQUE(team_id, name)
     );
     CREATE INDEX IF NOT EXISTS idx_kb_categories_name ON kb_categories(name);
     CREATE INDEX IF NOT EXISTS idx_kb_categories_team_id ON kb_categories(team_id);

@@ -50,13 +50,15 @@ export default function ProjectCard({ project, onEdit, onDelete }) {
           >
             <Edit3 className="w-3.5 h-3.5" />
           </button>
-          <button
-            onClick={() => onDelete(project)}
-            title="Delete Project"
-            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-          >
-            <Trash2 className="w-3.5 h-3.5" />
-          </button>
+          {onDelete && (
+            <button
+              onClick={() => onDelete(project)}
+              title="Delete Project (Leader only)"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+            >
+              <Trash2 className="w-3.5 h-3.5" />
+            </button>
+          )}
           <Link
             to={`/projects/${project.id}`}
             title="View Details"

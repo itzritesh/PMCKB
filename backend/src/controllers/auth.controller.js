@@ -46,6 +46,18 @@ const register = async (req, res, next) => {
       passwordHash,
     });
 
+    // Auto-create default personal workspace for new user
+    try {
+      const { TeamModel } = require('../models');
+      await TeamModel.create({
+        name: `${newUser.name}'s Workspace`,
+        description: 'Personal workspace',
+        createdBy: newUser.id,
+      });
+    } catch (teamErr) {
+      console.warn('Auto-provisioning workspace warning:', teamErr.message);
+    }
+
     // Generate JWT token
     const token = generateToken({
       id: newUser.id,

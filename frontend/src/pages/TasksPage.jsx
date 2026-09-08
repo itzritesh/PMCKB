@@ -12,6 +12,8 @@ import {
 import { taskService } from '../services/taskService';
 import { projectService } from '../services/projectService';
 import { userService } from '../services/userService';
+import { teamService } from '../services/teamService';
+import { useTeam } from '../context/TeamContext';
 import TaskCard from '../components/tasks/TaskCard';
 import TaskModal from '../components/tasks/TaskModal';
 import DeleteTaskModal from '../components/tasks/DeleteTaskModal';
@@ -26,6 +28,7 @@ const STATUS_TABS = [
 ];
 
 export default function TasksPage() {
+  const { currentTeam, isLeader } = useTeam();
   const [tasks, setTasks] = useState([]);
   const [projects, setProjects] = useState([]);
   const [users, setUsers] = useState([]);
@@ -52,14 +55,34 @@ export default function TasksPage() {
     setLoading(true);
     setError(null);
     try {
-      const [tasksRes, projectsRes, usersRes] = await Promise.all([
+      const [tasksRes, projectsRes] = await Promise.all([
         taskService.getAllTasks(),
         projectService.getProjects(),
-        userService.getUsers(),
       ]);
       setTasks(tasksRes.data.tasks || []);
       setProjects(projectsRes.data.projects || []);
-      setUsers(usersRes.data.users || []);
+
+      // Fetch team members if team is selected, otherwise general users
+      let teamUsers = [];
+      if (currentTeam?.id) {
+        try {
+          const memRes = await teamService.getTeamMembers(currentTeam.id);
+          const members = memRes.data?.members || [];
+          teamUsers = members.map((m) => ({
+            id: m.user_id,
+            name: m.name,
+            email: m.email,
+            role: m.role,
+          }));
+        } catch (e) {
+          console.warn('Failed to load team members:', e);
+        }
+      }
+      if (teamUsers.length === 0) {
+        const usersRes = await userService.getUsers();
+        teamUsers = usersRes.data.users || [];
+      }
+      setUsers(teamUsers);
     } catch (err) {
       setError(err.message || 'Failed to load tasks.');
     } finally {
@@ -69,7 +92,7 @@ export default function TasksPage() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [currentTeam?.id]);
 
   const handleOpenCreateModal = () => {
     setEditingTask(null);

@@ -8,6 +8,7 @@ export default function CategoryModal({
   categories = [],
   onCategoriesChanged,
   onChanged,
+  isLeader = true,
 }) {
   const [localCategories, setLocalCategories] = useState(categories);
   const [newCatName, setNewCatName] = useState('');
@@ -74,6 +75,11 @@ export default function CategoryModal({
     setError(null);
     setSuccessMsg(null);
 
+    if (!isLeader) {
+      setError('Only team leaders can create categories.');
+      return;
+    }
+
     if (!trimmedName) {
       setError('Please enter a category name.');
       return;
@@ -98,24 +104,37 @@ export default function CategoryModal({
       setNewCatDesc('');
       setError(null);
       setSuccessMsg(`Category "${trimmedName}" created successfully.`);
-      setTimeout(() => setSuccessMsg(null), 3000);
-
+      
       // Refresh list
       await loadCategories();
       notifyParent();
     } catch (err) {
       console.warn('Category creation error:', err);
-      if (err.status === 409) {
-        setError(`A category named "${trimmedName}" already exists. Please choose a unique name.`);
-      } else {
-        setError(err.message || 'Failed to create category.');
-      }
+      setError(err.message || 'Failed to create category.');
     } finally {
       setCreating(false);
     }
   };
 
   const handleDeleteCategory = async (catId) => {
+    if (!isLeader) {
+      setError('Only team leaders can delete categories.');
+      return;
+    }
+
+    if (deletingId) return;
+    const cat = localCategories.find((c) => c.id === catId);
+    if (!cat) return;
+
+    if (cat.article_count && cat.article_count > 0) {
+      setError(`Cannot delete "${cat.name}" because it contains ${cat.article_count} article(s). Reassign or delete articles first.`);
+      return;
+    }
+
+    if (!window.confirm(`Are you sure you want to delete category "${cat.name}"?`)) {
+      return;
+    }
+
     setError(null);
     setSuccessMsg(null);
     setDeletingId(catId);
@@ -165,53 +184,50 @@ export default function CategoryModal({
           </div>
         )}
 
-        {/* Create Category Form */}
-        <form onSubmit={handleCreateCategory} className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
-          <span className="text-xs font-bold text-slate-800 block">Create New Category</span>
-          <div>
-            <input
-              type="text"
-              required
-              value={newCatName}
-              onChange={(e) => {
-                setNewCatName(e.target.value);
-                if (error) setError(null);
-                if (successMsg) setSuccessMsg(null);
-              }}
-              placeholder="Category Name (e.g. DevOps & Infrastructure)"
-              className={`w-full px-3.5 py-2 bg-white border rounded-xl text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none transition-colors ${
-                isDuplicate
-                  ? 'border-amber-400 focus:border-amber-500 focus:ring-1 focus:ring-amber-400'
-                  : 'border-slate-200 focus:border-pink-500 focus:ring-1 focus:ring-pink-400'
-              }`}
-            />
-            {isDuplicate && (
-              <p className="text-[11px] text-amber-600 font-medium mt-1">
-                A category named "{trimmedName}" already exists.
-              </p>
-            )}
+        {/* Create Category Form (Leader only) */}
+        {isLeader ? (
+          <form onSubmit={handleCreateCategory} className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+            <span className="text-xs font-bold text-slate-800 block">Create New Category</span>
+            <div>
+              <input
+                type="text"
+                required
+                value={newCatName}
+                onChange={(e) => {
+                  setNewCatName(e.target.value);
+                  if (error) setError(null);
+                  if (successMsg) setSuccessMsg(null);
+                }}
+                placeholder="Category name (e.g. Architecture, API, Onboarding)..."
+                className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-pink-500"
+              />
+            </div>
+            <div>
+              <textarea
+                rows={2}
+                value={newCatDesc}
+                onChange={(e) => {
+                  setNewCatDesc(e.target.value);
+                  if (error) setError(null);
+                }}
+                placeholder="Brief description (optional)..."
+                className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-pink-500"
+              />
+            </div>
+            <button
+              type="submit"
+              disabled={creating || !trimmedName || isDuplicate}
+              className="w-full py-2.5 px-4 rounded-xl bg-pink-600 hover:bg-pink-700 text-white text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+            >
+              {creating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
+              <span>Add Category</span>
+            </button>
+          </form>
+        ) : (
+          <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-500 text-center">
+            Viewing categories only. Team leaders have permission to add or delete categories.
           </div>
-          <div>
-            <input
-              type="text"
-              value={newCatDesc}
-              onChange={(e) => {
-                setNewCatDesc(e.target.value);
-                if (error) setError(null);
-              }}
-              placeholder="Brief description (optional)..."
-              className="w-full px-3.5 py-2 bg-white border border-slate-200 rounded-xl text-xs sm:text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-pink-500"
-            />
-          </div>
-          <button
-            type="submit"
-            disabled={creating || !trimmedName || isDuplicate}
-            className="w-full py-2.5 px-4 rounded-xl bg-pink-600 hover:bg-pink-700 text-white text-xs font-semibold flex items-center justify-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-          >
-            {creating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
-            <span>Add Category</span>
-          </button>
-        </form>
+        )}
 
         {/* Existing Categories List */}
         <div className="space-y-2">
@@ -239,18 +255,20 @@ export default function CategoryModal({
                     </span>
                   </div>
 
-                  <button
-                    onClick={() => handleDeleteCategory(c.id)}
-                    disabled={deletingId === c.id}
-                    title="Delete Category"
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer disabled:opacity-50"
-                  >
-                    {deletingId === c.id ? (
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    ) : (
-                      <Trash2 className="w-3.5 h-3.5" />
-                    )}
-                  </button>
+                  {isLeader && (
+                    <button
+                      onClick={() => handleDeleteCategory(c.id)}
+                      disabled={deletingId === c.id}
+                      title="Delete Category (Leader only)"
+                      className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer disabled:opacity-50"
+                    >
+                      {deletingId === c.id ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Trash2 className="w-3.5 h-3.5" />
+                      )}
+                    </button>
+                  )}
                 </div>
               ))}
             </div>

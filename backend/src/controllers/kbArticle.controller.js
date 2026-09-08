@@ -3,7 +3,7 @@ const { sendSuccess, sendError } = require('../utils/response');
 
 /**
  * Knowledge Base Article Controller
- * Handles article authoring, draft/published workflows, and full-text search.
+ * Handles article authoring, draft/published workflows, and full-text search with team isolation.
  */
 const KbArticleController = {
   async createArticle(req, res, next) {
@@ -25,8 +25,8 @@ const KbArticleController = {
           return sendError(res, 'Invalid category ID format.', 400);
         }
         const category = await KbCategoryModel.findById(catId);
-        if (!category) {
-          return sendError(res, 'Selected category does not exist.', 404);
+        if (!category || (category.team_id && category.team_id !== req.teamId)) {
+          return sendError(res, 'Selected category does not exist in this workspace.', 404);
         }
       }
 
@@ -38,6 +38,7 @@ const KbArticleController = {
         content: content.trim(),
         categoryId: catId,
         authorId: req.user.id,
+        teamId: req.teamId,
         status: articleStatus,
       });
 
@@ -52,6 +53,7 @@ const KbArticleController = {
       const { search, category, status } = req.query;
 
       const articles = await KbArticleModel.findAll({
+        teamId: req.teamId,
         userId: req.user.id,
         search,
         categoryId: category,
@@ -66,20 +68,13 @@ const KbArticleController = {
 
   async getArticleById(req, res, next) {
     try {
-      const { id } = req.params;
-      const articleId = parseInt(id, 10);
-
-      if (isNaN(articleId)) {
-        return sendError(res, 'Invalid article ID format.', 400);
-      }
-
-      const article = await KbArticleModel.findById(articleId);
+      const article = req.resource || (await KbArticleModel.findById(req.params.id));
       if (!article) {
         return sendError(res, 'Article not found.', 404);
       }
 
-      // Visibility check: drafts are only visible to the author
-      if (article.status === 'draft' && article.author_id !== req.user.id) {
+      // Visibility check: drafts are only visible to the author or leader
+      if (article.status === 'draft' && article.author_id !== req.user.id && req.teamRole !== 'leader') {
         return sendError(res, 'You do not have permission to view this draft article.', 403);
       }
 
@@ -91,20 +86,13 @@ const KbArticleController = {
 
   async updateArticle(req, res, next) {
     try {
-      const { id } = req.params;
-      const articleId = parseInt(id, 10);
-
-      if (isNaN(articleId)) {
-        return sendError(res, 'Invalid article ID format.', 400);
-      }
-
-      const existing = await KbArticleModel.findById(articleId);
+      const existing = req.resource || (await KbArticleModel.findById(req.params.id));
       if (!existing) {
         return sendError(res, 'Article not found.', 404);
       }
 
-      if (existing.author_id !== req.user.id) {
-        return sendError(res, 'You can only edit articles you authored.', 403);
+      if (existing.author_id !== req.user.id && req.teamRole !== 'leader') {
+        return sendError(res, 'You can only edit articles you authored or as a team leader.', 403);
       }
 
       const { title, content, category_id, status } = req.body;
@@ -127,8 +115,8 @@ const KbArticleController = {
             return sendError(res, 'Invalid category ID format.', 400);
           }
           const category = await KbCategoryModel.findById(catId);
-          if (!category) {
-            return sendError(res, 'Selected category does not exist.', 404);
+          if (!category || (category.team_id && category.team_id !== req.teamId)) {
+            return sendError(res, 'Selected category does not exist in this workspace.', 404);
           }
         }
       }
@@ -137,8 +125,7 @@ const KbArticleController = {
       const articleStatus = status && validStatuses.includes(status) ? status : existing.status;
 
       const updated = await KbArticleModel.update({
-        id: articleId,
-        authorId: req.user.id,
+        id: existing.id,
         title: title.trim(),
         content: content.trim(),
         categoryId: catId,
@@ -153,28 +140,21 @@ const KbArticleController = {
 
   async deleteArticle(req, res, next) {
     try {
-      const { id } = req.params;
-      const articleId = parseInt(id, 10);
-
-      if (isNaN(articleId)) {
-        return sendError(res, 'Invalid article ID format.', 400);
-      }
-
-      const existing = await KbArticleModel.findById(articleId);
+      const existing = req.resource || (await KbArticleModel.findById(req.params.id));
       if (!existing) {
         return sendError(res, 'Article not found.', 404);
       }
 
-      if (existing.author_id !== req.user.id) {
-        return sendError(res, 'You can only delete articles you authored.', 403);
+      if (existing.author_id !== req.user.id && req.teamRole !== 'leader') {
+        return sendError(res, 'You can only delete articles you authored or as a team leader.', 403);
       }
 
-      const deleted = await KbArticleModel.delete({ id: articleId, authorId: req.user.id });
+      const deleted = await KbArticleModel.delete(existing.id);
       if (!deleted) {
         return sendError(res, 'Failed to delete article.', 500);
       }
 
-      return sendSuccess(res, { id: articleId }, 'Article deleted successfully');
+      return sendSuccess(res, { id: existing.id }, 'Article deleted successfully');
     } catch (error) {
       next(error);
     }

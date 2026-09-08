@@ -2,15 +2,16 @@ const { query } = require('../config/db');
 
 /**
  * Calendar Event Data Access Model
+ * Team-isolated calendar events
  */
 const CalendarEventModel = {
   /**
-   * Create a new calendar event
+   * Create a new calendar event for a team
    */
-  async create({ title, description, startDatetime, endDatetime, location, createdBy }) {
+  async create({ title, description, startDatetime, endDatetime, location, createdBy, teamId }) {
     const text = `
-      INSERT INTO calendar_events (title, description, start_datetime, end_datetime, location, created_by)
-      VALUES ($1, $2, $3, $4, $5, $6)
+      INSERT INTO calendar_events (title, description, start_datetime, end_datetime, location, created_by, team_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
       RETURNING id
     `;
     const values = [
@@ -20,32 +21,28 @@ const CalendarEventModel = {
       endDatetime,
       location ? location.trim() : null,
       createdBy,
+      teamId,
     ];
     const res = await query(text, values);
     return this.findById(res.rows[0].id);
   },
 
   /**
-   * Find events with optional date range filter and ownership/access
-   * Sorted chronologically (start_datetime ASC)
+   * Find calendar events belonging to the verified workspace
    */
-  async findAll({ userId, startDate, endDate }) {
+  async findAll({ teamId, userId, startDate, endDate }) {
     let text = `
-      SELECT e.id, e.title, e.description, e.start_datetime, e.end_datetime,
+      SELECT e.id, e.team_id, e.title, e.description, e.start_datetime, e.end_datetime,
              e.location, e.created_by, e.created_at, e.updated_at,
-             u.name as creator_name, u.email as creator_email
+             u.name as creator_name, u.email as creator_email,
+             tm.role as user_role
       FROM calendar_events e
+      JOIN team_members tm ON tm.team_id = e.team_id
       INNER JOIN users u ON e.created_by = u.id
-      WHERE 1=1
+      WHERE e.team_id = $1 AND tm.user_id = $2
     `;
-    const values = [];
-    let paramIndex = 1;
-
-    if (userId) {
-      text += ` AND e.created_by = $${paramIndex}`;
-      values.push(userId);
-      paramIndex++;
-    }
+    const values = [teamId, userId];
+    let paramIndex = 3;
 
     if (startDate) {
       text += ` AND e.end_datetime >= $${paramIndex}`;
@@ -60,17 +57,16 @@ const CalendarEventModel = {
     }
 
     text += ` ORDER BY e.start_datetime ASC`;
-
     const res = await query(text, values);
     return res.rows;
   },
 
   /**
-   * Find a single event by ID
+   * Find single event by ID
    */
   async findById(id) {
     const text = `
-      SELECT e.id, e.title, e.description, e.start_datetime, e.end_datetime,
+      SELECT e.id, e.team_id, e.title, e.description, e.start_datetime, e.end_datetime,
              e.location, e.created_by, e.created_at, e.updated_at,
              u.name as creator_name, u.email as creator_email
       FROM calendar_events e
@@ -83,9 +79,28 @@ const CalendarEventModel = {
   },
 
   /**
-   * Update an existing event (creator only)
+   * Find single event by ID verifying team access
    */
-  async update({ id, userId, title, description, startDatetime, endDatetime, location }) {
+  async findByIdAndTeam(id, userId) {
+    const text = `
+      SELECT e.id, e.team_id, e.title, e.description, e.start_datetime, e.end_datetime,
+             e.location, e.created_by, e.created_at, e.updated_at,
+             u.name as creator_name, u.email as creator_email,
+             tm.role as user_role
+      FROM calendar_events e
+      JOIN team_members tm ON tm.team_id = e.team_id
+      INNER JOIN users u ON e.created_by = u.id
+      WHERE e.id = $1 AND tm.user_id = $2
+      LIMIT 1
+    `;
+    const res = await query(text, [id, userId]);
+    return res.rows[0] || null;
+  },
+
+  /**
+   * Update calendar event
+   */
+  async update({ id, title, description, startDatetime, endDatetime, location }) {
     const text = `
       UPDATE calendar_events
       SET title = $1,
@@ -94,7 +109,7 @@ const CalendarEventModel = {
           end_datetime = $4,
           location = $5,
           updated_at = CURRENT_TIMESTAMP
-      WHERE id = $6 AND created_by = $7
+      WHERE id = $6
       RETURNING id
     `;
     const values = [
@@ -104,7 +119,6 @@ const CalendarEventModel = {
       endDatetime,
       location ? location.trim() : null,
       id,
-      userId,
     ];
     const res = await query(text, values);
     if (!res.rows[0]) return null;
@@ -112,15 +126,11 @@ const CalendarEventModel = {
   },
 
   /**
-   * Delete an existing event (creator only)
+   * Delete calendar event
    */
-  async delete({ id, userId }) {
-    const text = `
-      DELETE FROM calendar_events
-      WHERE id = $1 AND created_by = $2
-      RETURNING id
-    `;
-    const res = await query(text, [id, userId]);
+  async delete(id) {
+    const text = `DELETE FROM calendar_events WHERE id = $1 RETURNING id`;
+    const res = await query(text, [id]);
     return res.rowCount > 0;
   },
 };

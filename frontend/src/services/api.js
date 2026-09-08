@@ -10,12 +10,16 @@ const api = axios.create({
   },
 });
 
-// Request interceptor: Attach JWT token if stored
+// Request interceptor: Attach JWT token and active team ID if stored
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem('auth_token');
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
+    }
+    const currentTeamId = localStorage.getItem('current_team_id');
+    if (currentTeamId) {
+      config.headers['x-team-id'] = currentTeamId;
     }
     return config;
   },

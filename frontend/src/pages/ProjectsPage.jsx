@@ -8,6 +8,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { projectService } from '../services/projectService';
+import { useTeam } from '../context/TeamContext';
 import ProjectCard from '../components/projects/ProjectCard';
 import ProjectModal from '../components/projects/ProjectModal';
 import DeleteConfirmModal from '../components/projects/DeleteConfirmModal';
@@ -21,6 +22,7 @@ const STATUS_FILTERS = [
 ];
 
 export default function ProjectsPage() {
+  const { currentTeam, isLeader } = useTeam();
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -52,7 +54,7 @@ export default function ProjectsPage() {
 
   useEffect(() => {
     fetchProjects();
-  }, []);
+  }, [currentTeam?.id]);
 
   const handleOpenCreateModal = () => {
     setEditingProject(null);
@@ -280,7 +282,7 @@ export default function ProjectsPage() {
                 key={project.id}
                 project={project}
                 onEdit={handleOpenEditModal}
-                onDelete={handleOpenDeleteModal}
+                onDelete={isLeader ? handleOpenDeleteModal : null}
               />
             ))}
           </div>

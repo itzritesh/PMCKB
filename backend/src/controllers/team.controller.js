@@ -148,7 +148,8 @@ const TeamController = {
   async addTeamMember(req, res, next) {
     try {
       const teamId = req.team.id;
-      const { userId, email, role = 'member' } = req.body;
+      const { email, role = 'member' } = req.body;
+      const userId = req.body.userId || req.body.user_id;
 
       // Validate role
       if (!ALLOWED_ROLES.includes(role)) {

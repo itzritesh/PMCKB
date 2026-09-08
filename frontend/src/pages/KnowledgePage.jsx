@@ -19,6 +19,7 @@ import {
 } from 'lucide-react';
 import { knowledgeService } from '../services/knowledgeService';
 import { useAuth } from '../context/AuthContext';
+import { useTeam } from '../context/TeamContext';
 import ArticleModal from '../components/knowledge/ArticleModal';
 import CategoryModal from '../components/knowledge/CategoryModal';
 import DeleteArticleModal from '../components/knowledge/DeleteArticleModal';
@@ -26,6 +27,7 @@ import DeleteArticleModal from '../components/knowledge/DeleteArticleModal';
 export default function KnowledgePage() {
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { currentTeam, isLeader } = useTeam();
 
   const [articles, setArticles] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -71,7 +73,7 @@ export default function KnowledgePage() {
 
   useEffect(() => {
     fetchData();
-  }, [selectedCategory, statusFilter]);
+  }, [selectedCategory, statusFilter, currentTeam?.id]);
 
   const handleSearchSubmit = (e) => {
     e.preventDefault();
@@ -153,13 +155,16 @@ export default function KnowledgePage() {
           </div>
 
           <div className="flex items-center gap-2.5">
-            <button
-              onClick={() => setIsCategoryModalOpen(true)}
-              className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-medium transition-all shadow-2xs cursor-pointer"
-            >
-              <FolderPlus className="w-4 h-4 text-slate-500" />
-              <span>Categories</span>
-            </button>
+            {isLeader && (
+              <button
+                onClick={() => setIsCategoryModalOpen(true)}
+                title="Manage Categories (Leader only)"
+                className="inline-flex items-center gap-2 px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-slate-700 text-xs sm:text-sm font-medium transition-all shadow-2xs cursor-pointer"
+              >
+                <FolderPlus className="w-4 h-4 text-slate-500" />
+                <span>Categories</span>
+              </button>
+            )}
             <button
               onClick={handleOpenCreateArticle}
               className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs sm:text-sm font-medium transition-all shadow-xs cursor-pointer"
@@ -413,6 +418,7 @@ export default function KnowledgePage() {
         categories={categories}
         onCategoriesChanged={fetchData}
         onChanged={fetchData}
+        isLeader={isLeader}
       />
 
       {/* Delete Article Confirmation Modal */}

@@ -27,4 +27,5 @@ const authenticateJwt = (req, res, next) => {
 
 module.exports = {
   authenticateJwt,
+  authenticateUser: authenticateJwt,
 };

@@ -1,11 +1,11 @@
-const { TaskModel, ProjectModel, UserModel } = require('../models');
+const { TaskModel, ProjectModel, UserModel, TeamMemberModel } = require('../models');
 const { sendSuccess, sendError } = require('../utils/response');
 
 const ALLOWED_STATUSES = ['todo', 'in_progress', 'completed'];
 const ALLOWED_PRIORITIES = ['low', 'medium', 'high', 'urgent'];
 
 /**
- * Task Controller for CRUD and Assignment operations with project & owner isolation
+ * Task Controller for CRUD and Assignment operations with team isolation & role rules
  */
 const TaskController = {
   /**
@@ -16,14 +16,13 @@ const TaskController = {
     try {
       const { project_id, title, description, status, priority, due_date, assigned_to } = req.body;
 
-      // Validate project_id
       const projectId = parseInt(project_id, 10);
       if (isNaN(projectId)) {
         return sendError(res, 'A valid project_id is required.', 400);
       }
 
-      // Verify the target project exists and belongs to the authenticated user
-      const project = await ProjectModel.findByIdAndOwner(projectId, req.user.id);
+      // Verify the target project exists and belongs to the user's workspace
+      const project = await ProjectModel.findByIdAndTeam(projectId, req.user.id);
       if (!project) {
         return sendError(res, 'Project not found or you do not have permission to add tasks to it.', 404);
       }
@@ -37,7 +36,6 @@ const TaskController = {
         return sendError(res, 'Task title cannot exceed 255 characters.', 400);
       }
 
-      // Validate status
       const taskStatus = status || 'todo';
       if (!ALLOWED_STATUSES.includes(taskStatus)) {
         return sendError(
@@ -47,7 +45,6 @@ const TaskController = {
         );
       }
 
-      // Validate priority
       const taskPriority = priority || 'medium';
       if (!ALLOWED_PRIORITIES.includes(taskPriority)) {
         return sendError(
@@ -57,7 +54,6 @@ const TaskController = {
         );
       }
 
-      // Validate due_date format if provided
       let formattedDueDate = null;
       if (due_date) {
         const parsedDate = new Date(due_date);
@@ -67,23 +63,44 @@ const TaskController = {
         formattedDueDate = parsedDate.toISOString();
       }
 
-      // Validate assigned_to user exists if specified
+      // Role check: Arbitrary task assignment
       let assigneeId = null;
       if (assigned_to !== undefined && assigned_to !== null && assigned_to !== '') {
         const parsedUserId = parseInt(assigned_to, 10);
         if (isNaN(parsedUserId)) {
           return sendError(res, 'Invalid assigned_to user ID format.', 400);
         }
-        const user = await UserModel.findById(parsedUserId);
-        if (!user) {
-          return sendError(res, 'Selected assignee does not exist.', 400);
+
+        // Check if member is assigning to someone other than themselves
+        if (parsedUserId !== req.user.id && req.teamRole !== 'leader') {
+          return sendError(
+            res,
+            'Access denied. Only team leaders can assign tasks to other team members.',
+            403
+          );
         }
+
+        // Verify assignee belongs to the same workspace or auto-add by leader
+        const assigneeMembership = await TeamMemberModel.findByTeamAndUser(project.team_id, parsedUserId);
+        if (!assigneeMembership) {
+          const targetUser = await UserModel.findById(parsedUserId);
+          if (targetUser && req.teamRole === 'leader') {
+            await TeamMemberModel.addMember({
+              teamId: project.team_id,
+              userId: parsedUserId,
+              role: 'member',
+            });
+          } else {
+            return sendError(res, 'Assignee must be a member of this workspace.', 400);
+          }
+        }
+
         assigneeId = parsedUserId;
       }
 
       const task = await TaskModel.create({
-        projectId,
-        ownerId: req.user.id,
+        projectId: project.id,
+        teamId: project.team_id,
         title,
         description,
         status: taskStatus,
@@ -99,95 +116,67 @@ const TaskController = {
   },
 
   /**
-   * Get all tasks for a specific project
-   * GET /api/tasks/project/:projectId
-   */
-  async getTasksByProject(req, res, next) {
-    try {
-      const { projectId } = req.params;
-      const pid = parseInt(projectId, 10);
-
-      if (isNaN(pid)) {
-        return sendError(res, 'Invalid project ID format.', 400);
-      }
-
-      // Ensure project exists and belongs to the user
-      const project = await ProjectModel.findByIdAndOwner(pid, req.user.id);
-      if (!project) {
-        return sendError(res, 'Project not found or access denied.', 404);
-      }
-
-      const tasks = await TaskModel.findAllByProject(pid, req.user.id);
-      return sendSuccess(res, { tasks, total: tasks.length }, 'Tasks retrieved successfully');
-    } catch (error) {
-      next(error);
-    }
-  },
-
-  /**
-   * Get all tasks across all projects owned by the user
+   * Get all tasks for the verified workspace or a specific project
    * GET /api/tasks
    */
-  async getAllTasks(req, res, next) {
+  async getTasks(req, res, next) {
     try {
-      let tasks = await TaskModel.findAllByOwner(req.user.id);
+      const { project_id } = req.query;
 
-      // Optional status filter
-      if (req.query.status && ALLOWED_STATUSES.includes(req.query.status)) {
-        tasks = tasks.filter((t) => t.status === req.query.status);
+      let projectId = null;
+      if (project_id) {
+        projectId = parseInt(project_id, 10);
+        if (isNaN(projectId)) {
+          return sendError(res, 'Invalid project_id filter format.', 400);
+        }
+
+        const project = await ProjectModel.findByIdAndTeam(projectId, req.user.id);
+        if (!project) {
+          return sendError(res, 'Project not found or access denied.', 404);
+        }
       }
 
-      // Optional priority filter
-      if (req.query.priority && ALLOWED_PRIORITIES.includes(req.query.priority)) {
-        tasks = tasks.filter((t) => t.priority === req.query.priority);
-      }
+      const tasks = await TaskModel.findAllByTeam({
+        teamId: req.teamId,
+        userId: req.user.id,
+        projectId,
+      });
 
-      return sendSuccess(res, { tasks, total: tasks.length }, 'All tasks retrieved successfully');
+      return sendSuccess(
+        res,
+        {
+          tasks,
+          total: tasks.length,
+          projectId: projectId || null,
+          teamId: req.teamId,
+        },
+        'Tasks fetched successfully'
+      );
     } catch (error) {
       next(error);
     }
   },
 
   /**
-   * Get a single task by ID
+   * Get single task by ID
    * GET /api/tasks/:id
    */
   async getTaskById(req, res, next) {
     try {
-      const { id } = req.params;
-      const taskId = parseInt(id, 10);
-
-      if (isNaN(taskId)) {
-        return sendError(res, 'Invalid task ID format.', 400);
-      }
-
-      const task = await TaskModel.findByIdAndOwner(taskId, req.user.id);
-      if (!task) {
-        return sendError(res, 'Task not found or access denied.', 404);
-      }
-
-      return sendSuccess(res, { task }, 'Task retrieved successfully');
+      return sendSuccess(res, { task: req.resource }, 'Task retrieved successfully');
     } catch (error) {
       next(error);
     }
   },
 
   /**
-   * Update a task
+   * Update an existing task
    * PUT /api/tasks/:id
    */
   async updateTask(req, res, next) {
     try {
-      const { id } = req.params;
-      const taskId = parseInt(id, 10);
-
-      if (isNaN(taskId)) {
-        return sendError(res, 'Invalid task ID format.', 400);
-      }
-
       const { title, description, status, priority, due_date, assigned_to } = req.body;
 
-      // Validate title
       if (!title || typeof title !== 'string' || !title.trim()) {
         return sendError(res, 'Task title is required and cannot be empty.', 400);
       }
@@ -196,8 +185,7 @@ const TaskController = {
         return sendError(res, 'Task title cannot exceed 255 characters.', 400);
       }
 
-      // Validate status
-      const taskStatus = status || 'todo';
+      const taskStatus = status || req.resource.status;
       if (!ALLOWED_STATUSES.includes(taskStatus)) {
         return sendError(
           res,
@@ -206,8 +194,7 @@ const TaskController = {
         );
       }
 
-      // Validate priority
-      const taskPriority = priority || 'medium';
+      const taskPriority = priority || req.resource.priority;
       if (!ALLOWED_PRIORITIES.includes(taskPriority)) {
         return sendError(
           res,
@@ -216,33 +203,62 @@ const TaskController = {
         );
       }
 
-      // Validate due_date
-      let formattedDueDate = null;
-      if (due_date) {
-        const parsedDate = new Date(due_date);
-        if (isNaN(parsedDate.getTime())) {
-          return sendError(res, 'Invalid due_date format.', 400);
+      let formattedDueDate = req.resource.due_date;
+      if (due_date !== undefined) {
+        if (due_date === null || due_date === '') {
+          formattedDueDate = null;
+        } else {
+          const parsedDate = new Date(due_date);
+          if (isNaN(parsedDate.getTime())) {
+            return sendError(res, 'Invalid due_date format.', 400);
+          }
+          formattedDueDate = parsedDate.toISOString();
         }
-        formattedDueDate = parsedDate.toISOString();
       }
 
-      // Validate assigned_to user exists if specified
-      let assigneeId = null;
-      if (assigned_to !== undefined && assigned_to !== null && assigned_to !== '') {
-        const parsedUserId = parseInt(assigned_to, 10);
-        if (isNaN(parsedUserId)) {
-          return sendError(res, 'Invalid assigned_to user ID format.', 400);
+      // Role check: Arbitrary task assignment
+      let assigneeId = req.resource.assigned_to;
+      if (assigned_to !== undefined) {
+        if (assigned_to === null || assigned_to === '') {
+          // If non-leader attempts to unassign someone else
+          if (req.resource.assigned_to && req.resource.assigned_to !== req.user.id && req.teamRole !== 'leader') {
+            return sendError(res, 'Access denied. Only team leaders can modify other members’ assignments.', 403);
+          }
+          assigneeId = null;
+        } else {
+          const parsedUserId = parseInt(assigned_to, 10);
+          if (isNaN(parsedUserId)) {
+            return sendError(res, 'Invalid assigned_to user ID format.', 400);
+          }
+
+          if (parsedUserId !== req.user.id && req.teamRole !== 'leader') {
+            return sendError(
+              res,
+              'Access denied. Only team leaders can assign tasks to other team members.',
+              403
+            );
+          }
+
+          const assigneeMembership = await TeamMemberModel.findByTeamAndUser(req.resource.team_id, parsedUserId);
+          if (!assigneeMembership) {
+            const targetUser = await UserModel.findById(parsedUserId);
+            if (targetUser && req.teamRole === 'leader') {
+              await TeamMemberModel.addMember({
+                teamId: req.resource.team_id,
+                userId: parsedUserId,
+                role: 'member',
+              });
+            } else {
+              return sendError(res, 'Assignee must be a member of this workspace.', 400);
+            }
+          }
+
+          assigneeId = parsedUserId;
         }
-        const user = await UserModel.findById(parsedUserId);
-        if (!user) {
-          return sendError(res, 'Selected assignee does not exist.', 400);
-        }
-        assigneeId = parsedUserId;
       }
 
       const updatedTask = await TaskModel.update({
-        id: taskId,
-        ownerId: req.user.id,
+        id: req.resource.id,
         title,
         description,
         status: taskStatus,
@@ -251,10 +267,6 @@ const TaskController = {
         assignedTo: assigneeId,
       });
 
-      if (!updatedTask) {
-        return sendError(res, 'Task not found or you do not have permission to edit it.', 404);
-      }
-
       return sendSuccess(res, { task: updatedTask }, 'Task updated successfully');
     } catch (error) {
       next(error);
@@ -262,76 +274,83 @@ const TaskController = {
   },
 
   /**
-   * Assign or reassign a task
-   * PATCH /api/tasks/:id/assign
+   * Assign or unassign a task
+   * PUT /api/tasks/:id/assign
    */
   async assignTask(req, res, next) {
     try {
-      const { id } = req.params;
-      const taskId = parseInt(id, 10);
-
-      if (isNaN(taskId)) {
-        return sendError(res, 'Invalid task ID format.', 400);
-      }
-
       const { assigned_to } = req.body;
-      let targetUserId = null;
 
+      let assigneeId = null;
       if (assigned_to !== undefined && assigned_to !== null && assigned_to !== '') {
         const parsedUserId = parseInt(assigned_to, 10);
         if (isNaN(parsedUserId)) {
           return sendError(res, 'Invalid assigned_to user ID format.', 400);
         }
-        const user = await UserModel.findById(parsedUserId);
-        if (!user) {
-          return sendError(res, 'Selected assignee does not exist.', 400);
+
+        if (parsedUserId !== req.user.id && req.teamRole !== 'leader') {
+          return sendError(
+            res,
+            'Access denied. Only team leaders can assign tasks to other team members.',
+            403
+          );
         }
-        targetUserId = parsedUserId;
+
+        const assigneeMembership = await TeamMemberModel.findByTeamAndUser(req.resource.team_id, parsedUserId);
+        if (!assigneeMembership) {
+          const targetUser = await UserModel.findById(parsedUserId);
+          if (targetUser && req.teamRole === 'leader') {
+            await TeamMemberModel.addMember({
+              teamId: req.resource.team_id,
+              userId: parsedUserId,
+              role: 'member',
+            });
+          } else {
+            return sendError(res, 'Assignee must be a member of this workspace.', 400);
+          }
+        }
+
+        assigneeId = parsedUserId;
+      } else {
+        if (req.resource.assigned_to && req.resource.assigned_to !== req.user.id && req.teamRole !== 'leader') {
+          return sendError(res, 'Access denied. Only team leaders can modify other members’ assignments.', 403);
+        }
       }
 
       const updatedTask = await TaskModel.assign({
-        id: taskId,
-        ownerId: req.user.id,
-        assignedTo: targetUserId,
+        id: req.resource.id,
+        assignedTo: assigneeId,
       });
 
-      if (!updatedTask) {
-        return sendError(res, 'Task not found or access denied.', 404);
-      }
-
-      return sendSuccess(
-        res,
-        { task: updatedTask },
-        targetUserId ? 'Task assignee updated successfully' : 'Task unassigned successfully'
-      );
+      return sendSuccess(res, { task: updatedTask }, 'Task assigned successfully');
     } catch (error) {
       next(error);
     }
   },
 
   /**
-   * Delete a task
+   * Delete a task (Leader or creator)
    * DELETE /api/tasks/:id
    */
   async deleteTask(req, res, next) {
     try {
-      const { id } = req.params;
-      const taskId = parseInt(id, 10);
-
-      if (isNaN(taskId)) {
-        return sendError(res, 'Invalid task ID format.', 400);
+      if (req.teamRole !== 'leader' && req.resource.assigned_to !== req.user.id) {
+        return sendError(res, 'Access denied. Only team leaders can delete tasks.', 403);
       }
 
-      const deleted = await TaskModel.delete(taskId, req.user.id);
-      if (!deleted) {
-        return sendError(res, 'Task not found or you do not have permission to delete it.', 404);
-      }
-
-      return sendSuccess(res, { id: taskId }, 'Task deleted successfully');
+      await TaskModel.delete(req.resource.id);
+      return sendSuccess(res, { id: req.resource.id }, 'Task deleted successfully');
     } catch (error) {
       next(error);
     }
   },
+};
+
+// Provide aliases for backwards route compatibility
+TaskController.getAllTasks = TaskController.getTasks;
+TaskController.getTasksByProject = async (req, res, next) => {
+  req.query.project_id = req.params.projectId;
+  return TaskController.getTasks(req, res, next);
 };
 
 module.exports = TaskController;

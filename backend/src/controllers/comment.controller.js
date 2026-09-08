@@ -4,7 +4,7 @@ const { sendSuccess, sendError } = require('../utils/response');
 
 /**
  * Task Comment Controller
- * Handles discussion threads, comment creation, and author-isolated updates/deletions.
+ * Handles discussion threads, comment creation, and team/author isolation.
  */
 const CommentController = {
   /**
@@ -20,10 +20,19 @@ const CommentController = {
         return sendError(res, 'Invalid task ID format.', 400);
       }
 
-      // Verify task exists
-      const taskCheck = await query('SELECT id FROM tasks WHERE id = $1', [tid]);
+      // Verify task exists and user belongs to task's team
+      const taskCheck = await query(
+        `SELECT t.id, t.team_id, tm.role as user_role 
+         FROM tasks t 
+         LEFT JOIN team_members tm ON tm.team_id = t.team_id AND tm.user_id = $2
+         WHERE t.id = $1`,
+        [tid, req.user.id]
+      );
       if (!taskCheck.rows[0]) {
         return sendError(res, 'Task not found.', 404);
+      }
+      if (!taskCheck.rows[0].user_role) {
+        return sendError(res, 'Access denied. You do not have access to this workspace task.', 403);
       }
 
       const comments = await CommentModel.findAllByTask(tid);
@@ -46,10 +55,19 @@ const CommentController = {
         return sendError(res, 'Invalid task ID format.', 400);
       }
 
-      // Verify task exists
-      const taskCheck = await query('SELECT id FROM tasks WHERE id = $1', [tid]);
+      // Verify task exists and user belongs to task's team
+      const taskCheck = await query(
+        `SELECT t.id, t.team_id, tm.role as user_role 
+         FROM tasks t 
+         LEFT JOIN team_members tm ON tm.team_id = t.team_id AND tm.user_id = $2
+         WHERE t.id = $1`,
+        [tid, req.user.id]
+      );
       if (!taskCheck.rows[0]) {
         return sendError(res, 'Task not found.', 404);
+      }
+      if (!taskCheck.rows[0].user_role) {
+        return sendError(res, 'Access denied. You do not have access to this workspace task.', 403);
       }
 
       const { comment } = req.body;
@@ -95,10 +113,23 @@ const CommentController = {
         return sendError(res, 'Comment cannot exceed 5000 characters.', 400);
       }
 
-      // Check existing comment
-      const existing = await CommentModel.findById(commentId);
-      if (!existing) {
+      // Check existing comment and team access
+      const checkRes = await query(
+        `SELECT c.*, t.team_id, tm.role as user_role
+         FROM task_comments c
+         JOIN tasks t ON t.id = c.task_id
+         LEFT JOIN team_members tm ON tm.team_id = t.team_id AND tm.user_id = $2
+         WHERE c.id = $1`,
+        [commentId, req.user.id]
+      );
+
+      if (!checkRes.rows[0]) {
         return sendError(res, 'Comment not found.', 404);
+      }
+
+      const existing = checkRes.rows[0];
+      if (!existing.user_role) {
+        return sendError(res, 'Access denied. You do not belong to this workspace.', 403);
       }
 
       // Author verification
@@ -119,7 +150,7 @@ const CommentController = {
   },
 
   /**
-   * Delete an existing comment (author only)
+   * Delete an existing comment (author or team leader)
    * DELETE /api/comments/:id
    */
   async deleteComment(req, res, next) {
@@ -131,25 +162,30 @@ const CommentController = {
         return sendError(res, 'Invalid comment ID format.', 400);
       }
 
-      // Check existing comment
-      const existing = await CommentModel.findById(commentId);
-      if (!existing) {
+      const checkRes = await query(
+        `SELECT c.*, t.team_id, tm.role as user_role
+         FROM task_comments c
+         JOIN tasks t ON t.id = c.task_id
+         LEFT JOIN team_members tm ON tm.team_id = t.team_id AND tm.user_id = $2
+         WHERE c.id = $1`,
+        [commentId, req.user.id]
+      );
+
+      if (!checkRes.rows[0]) {
         return sendError(res, 'Comment not found.', 404);
       }
 
-      // Author verification
-      if (existing.user_id !== req.user.id) {
+      const existing = checkRes.rows[0];
+      if (!existing.user_role) {
+        return sendError(res, 'Access denied. You do not belong to this workspace.', 403);
+      }
+
+      // Author or Team Leader can delete comment
+      if (existing.user_id !== req.user.id && existing.user_role !== 'leader') {
         return sendError(res, 'You can only delete your own comments.', 403);
       }
 
-      const deleted = await CommentModel.delete({
-        id: commentId,
-        userId: req.user.id,
-      });
-
-      if (!deleted) {
-        return sendError(res, 'Failed to delete comment.', 500);
-      }
+      await query('DELETE FROM task_comments WHERE id = $1', [commentId]);
 
       return sendSuccess(res, { id: commentId }, 'Comment deleted successfully');
     } catch (error) {

@@ -1,15 +1,14 @@
 const { ProjectModel } = require('../models');
 const { sendSuccess, sendError } = require('../utils/response');
 
-// Allowed status values
 const ALLOWED_STATUSES = ['planning', 'in_progress', 'completed', 'on_hold'];
 
 /**
- * Project Controller for CRUD operations with owner-level isolation
+ * Project Controller for CRUD operations with team isolation and role authorization
  */
 const ProjectController = {
   /**
-   * Create a new project
+   * Create a new project within verified team
    * POST /api/projects
    */
   async createProject(req, res, next) {
@@ -40,6 +39,7 @@ const ProjectController = {
         description,
         status: projectStatus,
         ownerId: req.user.id,
+        teamId: req.teamId,
       });
 
       return sendSuccess(res, { project }, 'Project created successfully', 201);
@@ -49,17 +49,22 @@ const ProjectController = {
   },
 
   /**
-   * Get all projects for the authenticated user
+   * Get all projects for the verified workspace
    * GET /api/projects
    */
   async getProjects(req, res, next) {
     try {
-      const projects = await ProjectModel.findAllByOwner(req.user.id);
+      const projects = await ProjectModel.findAllByTeam({
+        teamId: req.teamId,
+        userId: req.user.id,
+      });
+
       return sendSuccess(
         res,
         {
           projects,
           total: projects.length,
+          teamId: req.teamId,
         },
         'Projects fetched successfully'
       );
@@ -69,45 +74,25 @@ const ProjectController = {
   },
 
   /**
-   * Get a single project by ID (ensuring ownership)
+   * Get a single project by ID (ensuring team access)
    * GET /api/projects/:id
    */
   async getProjectById(req, res, next) {
     try {
-      const { id } = req.params;
-      const projectId = parseInt(id, 10);
-
-      if (isNaN(projectId)) {
-        return sendError(res, 'Invalid project ID format.', 400);
-      }
-
-      const project = await ProjectModel.findByIdAndOwner(projectId, req.user.id);
-      if (!project) {
-        return sendError(res, 'Project not found or access denied.', 404);
-      }
-
-      return sendSuccess(res, { project }, 'Project retrieved successfully');
+      return sendSuccess(res, { project: req.resource }, 'Project retrieved successfully');
     } catch (error) {
       next(error);
     }
   },
 
   /**
-   * Update a project by ID (ensuring ownership)
+   * Update a project by ID (ensuring team access)
    * PUT /api/projects/:id
    */
   async updateProject(req, res, next) {
     try {
-      const { id } = req.params;
-      const projectId = parseInt(id, 10);
-
-      if (isNaN(projectId)) {
-        return sendError(res, 'Invalid project ID format.', 400);
-      }
-
       const { name, description, status } = req.body;
 
-      // Validate project name
       if (!name || typeof name !== 'string' || !name.trim()) {
         return sendError(res, 'Project name is required and cannot be empty.', 400);
       }
@@ -116,8 +101,7 @@ const ProjectController = {
         return sendError(res, 'Project name cannot exceed 255 characters.', 400);
       }
 
-      // Validate status
-      const projectStatus = status || 'planning';
+      const projectStatus = status || req.resource.status;
       if (!ALLOWED_STATUSES.includes(projectStatus)) {
         return sendError(
           res,
@@ -127,16 +111,11 @@ const ProjectController = {
       }
 
       const updatedProject = await ProjectModel.update({
-        id: projectId,
-        ownerId: req.user.id,
+        id: req.resource.id,
         name,
         description,
         status: projectStatus,
       });
-
-      if (!updatedProject) {
-        return sendError(res, 'Project not found or you do not have permission to edit it.', 404);
-      }
 
       return sendSuccess(res, { project: updatedProject }, 'Project updated successfully');
     } catch (error) {
@@ -145,24 +124,18 @@ const ProjectController = {
   },
 
   /**
-   * Delete a project by ID (ensuring ownership)
+   * Delete a project by ID (Leader only)
    * DELETE /api/projects/:id
    */
   async deleteProject(req, res, next) {
     try {
-      const { id } = req.params;
-      const projectId = parseInt(id, 10);
-
-      if (isNaN(projectId)) {
-        return sendError(res, 'Invalid project ID format.', 400);
+      // Enforce Leader role requirement: Members cannot delete projects
+      if (req.teamRole !== 'leader') {
+        return sendError(res, 'Access denied. Only team leaders can delete projects.', 403);
       }
 
-      const deleted = await ProjectModel.delete(projectId, req.user.id);
-      if (!deleted) {
-        return sendError(res, 'Project not found or you do not have permission to delete it.', 404);
-      }
-
-      return sendSuccess(res, { id: projectId }, 'Project deleted successfully');
+      await ProjectModel.delete(req.resource.id);
+      return sendSuccess(res, { id: req.resource.id }, 'Project deleted successfully');
     } catch (error) {
       next(error);
     }

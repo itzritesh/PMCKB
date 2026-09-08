@@ -47,6 +47,7 @@ const CalendarController = {
         endDatetime: endDate.toISOString(),
         location: location ? location.trim() : null,
         createdBy: req.user.id,
+        teamId: req.teamId,
       });
 
       return sendSuccess(res, { event }, 'Calendar event created successfully', 201);
@@ -77,6 +78,7 @@ const CalendarController = {
       }
 
       const events = await CalendarEventModel.findAll({
+        teamId: req.teamId,
         userId: req.user.id,
         startDate: startDateIso,
         endDate: endDateIso,
@@ -94,14 +96,7 @@ const CalendarController = {
    */
   async getEventById(req, res, next) {
     try {
-      const { id } = req.params;
-      const eventId = parseInt(id, 10);
-
-      if (isNaN(eventId)) {
-        return sendError(res, 'Invalid event ID format.', 400);
-      }
-
-      const event = await CalendarEventModel.findById(eventId);
+      const event = req.resource || (await CalendarEventModel.findById(req.params.id));
       if (!event) {
         return sendError(res, 'Calendar event not found.', 404);
       }
@@ -113,25 +108,18 @@ const CalendarController = {
   },
 
   /**
-   * Update calendar event (creator only)
+   * Update calendar event (creator or leader)
    * PUT /api/calendar/events/:id
    */
   async updateEvent(req, res, next) {
     try {
-      const { id } = req.params;
-      const eventId = parseInt(id, 10);
-
-      if (isNaN(eventId)) {
-        return sendError(res, 'Invalid event ID format.', 400);
-      }
-
-      const existing = await CalendarEventModel.findById(eventId);
+      const existing = req.resource || (await CalendarEventModel.findById(req.params.id));
       if (!existing) {
         return sendError(res, 'Calendar event not found.', 404);
       }
 
-      if (existing.created_by !== req.user.id) {
-        return sendError(res, 'You can only modify calendar events you created.', 403);
+      if (existing.created_by !== req.user.id && req.teamRole !== 'leader') {
+        return sendError(res, 'You can only modify calendar events you created or as a team leader.', 403);
       }
 
       const { title, description, start_datetime, end_datetime, location } = req.body;
@@ -155,8 +143,7 @@ const CalendarController = {
       }
 
       const updated = await CalendarEventModel.update({
-        id: eventId,
-        userId: req.user.id,
+        id: existing.id,
         title: title.trim(),
         description: description !== undefined ? (description ? description.trim() : null) : existing.description,
         startDatetime: startDate.toISOString(),
@@ -171,33 +158,26 @@ const CalendarController = {
   },
 
   /**
-   * Delete calendar event (creator only)
+   * Delete calendar event (creator or leader)
    * DELETE /api/calendar/events/:id
    */
   async deleteEvent(req, res, next) {
     try {
-      const { id } = req.params;
-      const eventId = parseInt(id, 10);
-
-      if (isNaN(eventId)) {
-        return sendError(res, 'Invalid event ID format.', 400);
-      }
-
-      const existing = await CalendarEventModel.findById(eventId);
+      const existing = req.resource || (await CalendarEventModel.findById(req.params.id));
       if (!existing) {
         return sendError(res, 'Calendar event not found.', 404);
       }
 
-      if (existing.created_by !== req.user.id) {
-        return sendError(res, 'You can only delete calendar events you created.', 403);
+      if (existing.created_by !== req.user.id && req.teamRole !== 'leader') {
+        return sendError(res, 'You can only delete calendar events you created or as a team leader.', 403);
       }
 
-      const deleted = await CalendarEventModel.delete({ id: eventId, userId: req.user.id });
+      const deleted = await CalendarEventModel.delete(existing.id);
       if (!deleted) {
         return sendError(res, 'Failed to delete calendar event.', 500);
       }
 
-      return sendSuccess(res, { id: eventId }, 'Calendar event deleted successfully');
+      return sendSuccess(res, { id: existing.id }, 'Calendar event deleted successfully');
     } catch (error) {
       next(error);
     }

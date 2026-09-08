@@ -2,28 +2,45 @@ const { query } = require('../config/db');
 
 /**
  * Knowledge Base Category Data Access Model
+ * Team-isolated category management
  */
 const KbCategoryModel = {
   /**
    * Create a new category
    */
-  async create({ name, description, createdBy }) {
+  async create({ name, description, createdBy, teamId }) {
     const text = `
-      INSERT INTO kb_categories (name, description, created_by)
-      VALUES ($1, $2, $3)
+      INSERT INTO kb_categories (name, description, created_by, team_id)
+      VALUES ($1, $2, $3, $4)
       RETURNING id
     `;
-    const values = [name.trim(), description ? description.trim() : null, createdBy];
+    const values = [name.trim(), description ? description.trim() : null, createdBy, teamId || null];
     const res = await query(text, values);
     return this.findById(res.rows[0].id);
   },
 
   /**
-   * Find all categories with article count
+   * Find all categories with article count, filtered by team if provided
    */
-  async findAll() {
+  async findAll({ teamId, userId } = {}) {
+    if (teamId && userId) {
+      const text = `
+        SELECT c.id, c.team_id, c.name, c.description, c.created_by, c.created_at,
+               COUNT(a.id)::int as article_count,
+               tm.role as user_role
+        FROM kb_categories c
+        JOIN team_members tm ON tm.team_id = c.team_id
+        LEFT JOIN kb_articles a ON c.id = a.category_id AND a.team_id = c.team_id
+        WHERE c.team_id = $1 AND tm.user_id = $2
+        GROUP BY c.id, tm.role
+        ORDER BY c.name ASC
+      `;
+      const res = await query(text, [teamId, userId]);
+      return res.rows;
+    }
+
     const text = `
-      SELECT c.id, c.name, c.description, c.created_by, c.created_at,
+      SELECT c.id, c.team_id, c.name, c.description, c.created_by, c.created_at,
              COUNT(a.id)::int as article_count
       FROM kb_categories c
       LEFT JOIN kb_articles a ON c.id = a.category_id
@@ -39,7 +56,7 @@ const KbCategoryModel = {
    */
   async findById(id) {
     const text = `
-      SELECT c.id, c.name, c.description, c.created_by, c.created_at,
+      SELECT c.id, c.team_id, c.name, c.description, c.created_by, c.created_at,
              COUNT(a.id)::int as article_count
       FROM kb_categories c
       LEFT JOIN kb_articles a ON c.id = a.category_id
@@ -52,11 +69,39 @@ const KbCategoryModel = {
   },
 
   /**
-   * Find category by name (for duplicate detection)
+   * Find category by ID verifying team access
    */
-  async findByName(name) {
+  async findByIdAndTeam(id, userId) {
     const text = `
-      SELECT id, name FROM kb_categories
+      SELECT c.id, c.team_id, c.name, c.description, c.created_by, c.created_at,
+             COUNT(a.id)::int as article_count,
+             tm.role as user_role
+      FROM kb_categories c
+      JOIN team_members tm ON tm.team_id = c.team_id
+      LEFT JOIN kb_articles a ON c.id = a.category_id AND a.team_id = c.team_id
+      WHERE c.id = $1 AND tm.user_id = $2
+      GROUP BY c.id, tm.role
+      LIMIT 1
+    `;
+    const res = await query(text, [id, userId]);
+    return res.rows[0] || null;
+  },
+
+  /**
+   * Find category by name (scoped to team if provided)
+   */
+  async findByName(name, teamId = null) {
+    if (teamId) {
+      const text = `
+        SELECT id, team_id, name FROM kb_categories
+        WHERE LOWER(name) = LOWER($1) AND team_id = $2
+        LIMIT 1
+      `;
+      const res = await query(text, [name.trim(), teamId]);
+      return res.rows[0] || null;
+    }
+    const text = `
+      SELECT id, team_id, name FROM kb_categories
       WHERE LOWER(name) = LOWER($1)
       LIMIT 1
     `;
