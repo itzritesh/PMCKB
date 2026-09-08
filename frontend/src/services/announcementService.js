@@ -10,6 +10,15 @@ export const announcementService = {
   },
 
   /**
+   * Fetch all announcements for a specific team
+   * @param {number|string} teamId
+   */
+  async getTeamAnnouncements(teamId) {
+    const response = await api.get(`/api/teams/${teamId}/announcements`);
+    return response.data;
+  },
+
+  /**
    * Fetch a single announcement by ID
    * @param {number|string} id
    */
@@ -19,8 +28,18 @@ export const announcementService = {
   },
 
   /**
-   * Create an announcement (Leader only)
-   * @param {{ title: string, content: string, priority?: string }} data
+   * Create an announcement for a specific team (Leader only)
+   * @param {number|string} teamId
+   * @param {{ title: string, message: string }} data
+   */
+  async createTeamAnnouncement(teamId, data) {
+    const response = await api.post(`/api/teams/${teamId}/announcements`, data);
+    return response.data;
+  },
+
+  /**
+   * Create an announcement for the active workspace (Leader only)
+   * @param {{ title: string, message: string }} data
    */
   async createAnnouncement(data) {
     const response = await api.post('/api/announcements', data);
@@ -30,7 +49,7 @@ export const announcementService = {
   /**
    * Update an announcement (Leader only)
    * @param {number|string} id
-   * @param {{ title?: string, content?: string, priority?: string }} data
+   * @param {{ title?: string, message?: string }} data
    */
   async updateAnnouncement(id, data) {
     const response = await api.put(`/api/announcements/${id}`, data);
@@ -46,3 +65,5 @@ export const announcementService = {
     return response.data;
   },
 };
+
+export default announcementService;

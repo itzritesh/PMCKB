@@ -8,8 +8,9 @@ const AnnouncementController = {
    */
   async getAnnouncements(req, res, next) {
     try {
+      const targetTeamId = req.teamId || (req.params.teamId ? parseInt(req.params.teamId, 10) : undefined);
       const announcements = await AnnouncementModel.findAllByTeam({
-        teamId: req.teamId,
+        teamId: targetTeamId,
         userId: req.user.id,
       });
 
@@ -18,7 +19,7 @@ const AnnouncementController = {
         {
           announcements,
           total: announcements.length,
-          teamId: req.teamId,
+          teamId: targetTeamId,
         },
         'Announcements fetched successfully'
       );
@@ -46,6 +47,7 @@ const AnnouncementController = {
    */
   async createAnnouncement(req, res, next) {
     try {
+      const targetTeamId = req.teamId || (req.params.teamId ? parseInt(req.params.teamId, 10) : undefined);
       const { title } = req.body;
       const message = req.body.message || req.body.content;
 
@@ -58,7 +60,7 @@ const AnnouncementController = {
       }
 
       const announcement = await AnnouncementModel.create({
-        teamId: req.teamId,
+        teamId: targetTeamId,
         title,
         message,
         createdBy: req.user.id,

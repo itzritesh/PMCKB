@@ -29,6 +29,8 @@ import {
   Clock3,
   Bell,
   FileText,
+  Megaphone,
+  X,
 } from 'lucide-react';
 import { authService } from '../services/authService';
 import { projectService } from '../services/projectService';
@@ -37,6 +39,7 @@ import { userService } from '../services/userService';
 import { calendarService } from '../services/calendarService';
 import { meetingService } from '../services/meetingService';
 import { knowledgeService } from '../services/knowledgeService';
+import { announcementService } from '../services/announcementService';
 import StatusPill from '../components/projects/StatusPill';
 import ProjectModal from '../components/projects/ProjectModal';
 import TaskModal from '../components/tasks/TaskModal';
@@ -56,6 +59,7 @@ export default function DashboardPage() {
   const [events, setEvents] = useState([]);
   const [meetings, setMeetings] = useState([]);
   const [articles, setArticles] = useState([]);
+  const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
 
   // Protected test state
@@ -72,6 +76,13 @@ export default function DashboardPage() {
 
   const [detailsTask, setDetailsTask] = useState(null);
 
+  // Announcement modal state for quick dashboard trigger
+  const [announcementModalOpen, setAnnouncementModalOpen] = useState(false);
+  const [announcementTitle, setAnnouncementTitle] = useState('');
+  const [announcementMessage, setAnnouncementMessage] = useState('');
+  const [submittingAnnouncement, setSubmittingAnnouncement] = useState(false);
+  const [announcementError, setAnnouncementError] = useState('');
+
   // Task Filter state for dashboard
   const [taskSearch, setTaskSearch] = useState('');
   const [taskStatusFilter, setTaskStatusFilter] = useState('all');
@@ -80,18 +91,20 @@ export default function DashboardPage() {
 
   const fetchData = async () => {
     try {
-      const [projRes, tasksRes, eventsRes, meetingsRes, articlesRes] = await Promise.all([
+      const [projRes, tasksRes, eventsRes, meetingsRes, articlesRes, announcementsRes] = await Promise.all([
         projectService.getProjects(),
         taskService.getAllTasks(),
         calendarService.getEvents().catch(() => ({ data: { events: [] } })),
         meetingService.getMeetings().catch(() => ({ data: { meetings: [] } })),
         knowledgeService.getArticles({ status: 'published' }).catch(() => ({ data: { articles: [] } })),
+        announcementService.getAnnouncements().catch(() => ({ data: { announcements: [] } })),
       ]);
       setProjects(projRes.data?.projects || []);
       setTasks(tasksRes.data?.tasks || []);
       setEvents(eventsRes.data?.events || []);
       setMeetings(meetingsRes.data?.meetings || []);
       setArticles(articlesRes.data?.articles || []);
+      setAnnouncements(announcementsRes.data?.announcements || []);
 
       // Load team members if team is selected
       if (currentTeam?.id) {
@@ -167,6 +180,33 @@ export default function DashboardPage() {
       throw err;
     } finally {
       setSubmittingTask(false);
+    }
+  };
+
+  const handleCreateAnnouncement = async (e) => {
+    e.preventDefault();
+    if (!announcementTitle.trim() || !announcementMessage.trim()) {
+      setAnnouncementError('Title and message are required.');
+      return;
+    }
+    setSubmittingAnnouncement(true);
+    setAnnouncementError('');
+    try {
+      const res = await announcementService.createAnnouncement({
+        title: announcementTitle.trim(),
+        message: announcementMessage.trim(),
+      });
+      const created = res.data?.announcement;
+      if (created) {
+        setAnnouncements((prev) => [created, ...prev]);
+      }
+      setAnnouncementTitle('');
+      setAnnouncementMessage('');
+      setAnnouncementModalOpen(false);
+    } catch (err) {
+      setAnnouncementError(err.response?.data?.message || err.message || 'Failed to publish announcement.');
+    } finally {
+      setSubmittingAnnouncement(false);
     }
   };
 
@@ -389,6 +429,14 @@ export default function DashboardPage() {
                   >
                     <Plus className="w-4 h-4" />
                     <span>New Task</span>
+                  </button>
+
+                  <button
+                    onClick={() => setAnnouncementModalOpen(true)}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white text-xs sm:text-sm font-medium transition-all shadow-xs cursor-pointer"
+                  >
+                    <Megaphone className="w-4 h-4" />
+                    <span>Create Announcement</span>
                   </button>
                 </>
               ) : (
@@ -614,6 +662,104 @@ export default function DashboardPage() {
               </span>
             </div>
           </div>
+        </div>
+
+        {/* Team Announcements Feed */}
+        <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs space-y-4">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                <Megaphone className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-bold text-slate-900">Team Announcements</h3>
+                  {announcements.length > 0 && (
+                    <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
+                      {announcements.length}
+                    </span>
+                  )}
+                </div>
+                <p className="text-xs text-slate-500">
+                  Official updates, notices, and broadcasts from leadership
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2.5">
+              {isLeader && (
+                <button
+                  onClick={() => setAnnouncementModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 text-xs font-semibold transition-colors cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Post</span>
+                </button>
+              )}
+              <Link
+                to="/announcements"
+                className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700"
+              >
+                <span>View all</span>
+                <ArrowRight className="w-3.5 h-3.5" />
+              </Link>
+            </div>
+          </div>
+
+          {announcements.length === 0 ? (
+            <div className="py-8 text-center bg-slate-50/60 rounded-2xl border border-dashed border-slate-200">
+              <Megaphone className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+              <p className="text-xs font-medium text-slate-600">No announcements posted yet</p>
+              <p className="text-[11px] text-slate-400 mt-0.5">
+                {isLeader
+                  ? 'Share important updates, releases, or guidelines with your workspace.'
+                  : 'Check back later for announcements and team updates.'}
+              </p>
+              {isLeader && (
+                <button
+                  onClick={() => setAnnouncementModalOpen(true)}
+                  className="mt-3 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-medium transition-colors cursor-pointer"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Create Announcement</span>
+                </button>
+              )}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {announcements.slice(0, 3).map((item) => (
+                <div
+                  key={item.id}
+                  className="p-4 rounded-2xl bg-gradient-to-br from-amber-50/40 via-white to-slate-50 border border-amber-100 hover:border-amber-200 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between"
+                >
+                  <div className="space-y-2">
+                    <div className="flex items-start justify-between gap-2">
+                      <h4 className="text-sm font-bold text-slate-900 line-clamp-1">
+                        {item.title}
+                      </h4>
+                      <span className="shrink-0 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-amber-100 text-amber-800">
+                        Update
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-600 line-clamp-3 leading-relaxed">
+                      {item.message}
+                    </p>
+                  </div>
+                  <div className="pt-3 mt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+                    <span className="font-medium truncate max-w-[130px]">
+                      👤 {item.created_by_name || 'Leader'}
+                    </span>
+                    <span>
+                      {new Date(item.created_at).toLocaleDateString(undefined, {
+                        month: 'short',
+                        day: 'numeric',
+                      })}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Dedicated Overdue Tasks Section */}
@@ -1181,6 +1327,91 @@ export default function DashboardPage() {
         onClose={() => setDetailsTask(null)}
         task={detailsTask}
       />
+
+      {/* Quick Create Announcement Modal */}
+      {announcementModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white max-w-lg w-full rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-2xl relative">
+            <button
+              onClick={() => {
+                setAnnouncementModalOpen(false);
+                setAnnouncementError('');
+              }}
+              className="absolute top-6 right-6 p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600">
+                <Megaphone className="w-5 h-5" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-slate-900">Post Team Announcement</h3>
+                <p className="text-xs text-slate-500">Broadcast a message to all members of {currentTeam?.name || 'this team'}</p>
+              </div>
+            </div>
+
+            {announcementError && (
+              <div className="mb-5 p-3.5 rounded-2xl bg-rose-50 border border-rose-200 flex items-center gap-2.5 text-xs text-rose-700">
+                <AlertTriangle className="w-4 h-4 text-rose-500 shrink-0" />
+                <span>{announcementError}</span>
+              </div>
+            )}
+
+            <form onSubmit={handleCreateAnnouncement} className="space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Announcement Title <span className="text-rose-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  value={announcementTitle}
+                  onChange={(e) => setAnnouncementTitle(e.target.value)}
+                  placeholder="e.g., Q3 Planning Sync or Deployment Freeze"
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none text-sm text-slate-900 transition-all placeholder:text-slate-400"
+                  required
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                  Message Content <span className="text-rose-500">*</span>
+                </label>
+                <textarea
+                  value={announcementMessage}
+                  onChange={(e) => setAnnouncementMessage(e.target.value)}
+                  rows={4}
+                  placeholder="Write the full announcement details, deadlines, links or instructions..."
+                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none text-sm text-slate-900 transition-all placeholder:text-slate-400 resize-none"
+                  required
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setAnnouncementModalOpen(false);
+                    setAnnouncementError('');
+                  }}
+                  className="px-4 py-2.5 rounded-xl text-xs sm:text-sm font-medium text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={submittingAnnouncement}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs sm:text-sm font-semibold transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                >
+                  <Megaphone className="w-4 h-4" />
+                  <span>{submittingAnnouncement ? 'Publishing...' : 'Publish Announcement'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

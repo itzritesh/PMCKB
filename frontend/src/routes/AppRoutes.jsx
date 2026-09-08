@@ -21,6 +21,7 @@ import ArticleDetailsPage from '../pages/ArticleDetailsPage';
 import TeamsPage from '../pages/TeamsPage';
 import TeamDetailsPage from '../pages/TeamDetailsPage';
 import AcceptInvitePage from '../pages/AcceptInvitePage';
+import AnnouncementsPage from '../pages/AnnouncementsPage';
 
 export default function AppRoutes() {
   const [backendStatus, setBackendStatus] = useState('checking');
@@ -163,6 +164,14 @@ export default function AppRoutes() {
             element={
               <ProtectedRoute>
                 <ArticleDetailsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/announcements"
+            element={
+              <ProtectedRoute>
+                <AnnouncementsPage />
               </ProtectedRoute>
             }
           />

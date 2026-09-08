@@ -2,6 +2,7 @@ const express = require('express');
 const router = express.Router();
 const TeamController = require('../controllers/team.controller');
 const InvitationController = require('../controllers/invitation.controller');
+const AnnouncementController = require('../controllers/announcement.controller');
 const { authenticateJwt } = require('../middleware/auth.middleware');
 const { requireTeamMember, requireTeamLeader } = require('../middleware/team.middleware');
 
@@ -24,5 +25,9 @@ router.delete('/:teamId/members/:userId', requireTeamLeader, TeamController.remo
 // Team Invitations (Leader only)
 router.post('/:teamId/invitations', requireTeamLeader, InvitationController.createInvitation);
 router.get('/:teamId/invitations', requireTeamLeader, InvitationController.getWorkspaceInvitations);
+
+// Team Announcements
+router.post('/:teamId/announcements', requireTeamLeader, AnnouncementController.createAnnouncement);
+router.get('/:teamId/announcements', requireTeamMember, AnnouncementController.getAnnouncements);
 
 module.exports = router;

@@ -11,6 +11,7 @@ import {
   X,
   Layers,
   Briefcase,
+  Megaphone,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -72,6 +73,13 @@ export default function Sidebar({ isOpen = false, onClose }) {
       icon: BookOpen,
       activeColor: 'text-indigo-700 bg-indigo-50 border-indigo-200 font-semibold',
       badge: 'Active',
+    },
+    {
+      to: '/announcements',
+      label: 'Announcements',
+      icon: Megaphone,
+      activeColor: 'text-indigo-700 bg-indigo-50 border-indigo-200 font-semibold',
+      badge: 'Feed',
     },
   ];
 
