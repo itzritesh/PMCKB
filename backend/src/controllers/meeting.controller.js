@@ -13,6 +13,10 @@ const MeetingController = {
 
   async createMeeting(req, res, next) {
     try {
+      if (req.teamRole !== 'leader') {
+        return sendError(res, 'Access denied. Only team leaders can schedule meetings.', 403);
+      }
+
       const { title, description, start_datetime, end_datetime, location, status } = req.body;
 
       if (!title || typeof title !== 'string' || !title.trim()) {
@@ -117,9 +121,9 @@ const MeetingController = {
         return sendError(res, 'End date and time must not be before start date and time.', 400);
       }
 
-      // Check permissions: Organizer or Team Leader
-      if (req.resource.organizer_id !== req.user.id && req.teamRole !== 'leader') {
-        return sendError(res, 'Only the organizer or team leader can update this meeting.', 403);
+      // Permissions: Team Leader
+      if (req.teamRole !== 'leader') {
+        return sendError(res, 'Access denied. Only team leaders can update meetings.', 403);
       }
 
       const validStatuses = ['scheduled', 'completed', 'cancelled'];
@@ -143,8 +147,8 @@ const MeetingController = {
 
   async deleteMeeting(req, res, next) {
     try {
-      if (req.resource.organizer_id !== req.user.id && req.teamRole !== 'leader') {
-        return sendError(res, 'Only the organizer or team leader can delete this meeting.', 403);
+      if (req.teamRole !== 'leader') {
+        return sendError(res, 'Access denied. Only team leaders can delete meetings.', 403);
       }
 
       await MeetingModel.delete(req.resource.id);
@@ -160,6 +164,10 @@ const MeetingController = {
 
   async addAttendee(req, res, next) {
     try {
+      if (req.teamRole !== 'leader') {
+        return sendError(res, 'Access denied. Only team leaders can manage attendees.', 403);
+      }
+
       const mid = req.resource.id;
       const rawUserId = req.body.userId !== undefined ? req.body.userId : req.body.user_id;
       const targetUserId = parseInt(rawUserId, 10);
@@ -174,10 +182,10 @@ const MeetingController = {
         return sendError(res, 'Selected user does not exist.', 404);
       }
 
-      // Ensure attendee is a member of the meeting's workspace
+      // Ensure attendee is a member of the meeting's workspace (Cross-team defense)
       const membership = await TeamMemberModel.findByTeamAndUser(req.resource.team_id, targetUserId);
       if (!membership) {
-        return sendError(res, 'Invited attendee must be a member of this workspace.', 400);
+        return sendError(res, 'Target attendee must belong to the same team as the meeting. Cross-team attendees are not allowed.', 400);
       }
 
       const validStatuses = ['pending', 'accepted', 'declined'];
@@ -248,13 +256,12 @@ const MeetingController = {
         return sendError(res, 'Invalid user ID format.', 400);
       }
 
-      // Permissions: meeting organizer, team leader, or attendee removing self
-      const isOrganizer = req.resource.organizer_id === req.user.id;
+      // Permissions: Team Leader or Attendee removing self
       const isSelf = targetUserId === req.user.id;
       const isLeader = req.teamRole === 'leader';
 
-      if (!isOrganizer && !isSelf && !isLeader) {
-        return sendError(res, 'You do not have permission to remove this attendee.', 403);
+      if (!isLeader && !isSelf) {
+        return sendError(res, 'Access denied. Only team leaders can remove other attendees.', 403);
       }
 
       const removed = await MeetingAttendeeModel.removeAttendee({
@@ -287,6 +294,10 @@ const MeetingController = {
 
   async createMinutes(req, res, next) {
     try {
+      if (req.teamRole !== 'leader') {
+        return sendError(res, 'Access denied. Only team leaders can record meeting minutes.', 403);
+      }
+
       const mid = req.resource.id;
       const { summary, discussion, decisions, action_items } = req.body;
 
@@ -314,6 +325,10 @@ const MeetingController = {
 
   async updateMinutes(req, res, next) {
     try {
+      if (req.teamRole !== 'leader') {
+        return sendError(res, 'Access denied. Only team leaders can update meeting minutes.', 403);
+      }
+
       const mid = req.resource.id;
       const { summary, discussion, decisions, action_items } = req.body;
 
@@ -341,6 +356,10 @@ const MeetingController = {
 
   async deleteMinutes(req, res, next) {
     try {
+      if (req.teamRole !== 'leader') {
+        return sendError(res, 'Access denied. Only team leaders can delete meeting minutes.', 403);
+      }
+
       const deleted = await MeetingMinutesModel.delete(req.resource.id);
       if (!deleted) {
         return sendError(res, 'Meeting minutes not found.', 404);

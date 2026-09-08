@@ -16,6 +16,7 @@ import {
 } from 'lucide-react';
 import { meetingService } from '../services/meetingService';
 import { useAuth } from '../context/AuthContext';
+import { useTeam } from '../context/TeamContext';
 import MeetingModal from '../components/meetings/MeetingModal';
 import DeleteMeetingModal from '../components/meetings/DeleteMeetingModal';
 
@@ -28,6 +29,7 @@ const STATUS_FILTERS = [
 
 export default function MeetingsPage() {
   const { user } = useAuth();
+  const { currentTeam, isLeader } = useTeam();
   const [meetings, setMeetings] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -58,7 +60,7 @@ export default function MeetingsPage() {
 
   useEffect(() => {
     fetchMeetings();
-  }, [statusFilter]);
+  }, [statusFilter, currentTeam?.id]);
 
   const handleCreateMeeting = () => {
     setEditingMeeting(null);
@@ -188,13 +190,15 @@ export default function MeetingsPage() {
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
-            <button
-              onClick={handleCreateMeeting}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white text-xs sm:text-sm font-medium transition-all shadow-xs cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Schedule Meeting</span>
-            </button>
+            {isLeader && (
+              <button
+                onClick={handleCreateMeeting}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white text-xs sm:text-sm font-medium transition-all shadow-xs cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Schedule Meeting</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -285,7 +289,7 @@ export default function MeetingsPage() {
                       </div>
 
                       <div className="flex items-center gap-1">
-                        {isOrganizer && (
+                        {isLeader && (
                           <>
                             <button
                               onClick={() => handleEditMeeting(m)}

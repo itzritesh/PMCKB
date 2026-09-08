@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { knowledgeService } from '../services/knowledgeService';
 import { useAuth } from '../context/AuthContext';
+import { useTeam } from '../context/TeamContext';
 import ArticleModal from '../components/knowledge/ArticleModal';
 import DeleteArticleModal from '../components/knowledge/DeleteArticleModal';
 
@@ -22,6 +23,7 @@ export default function ArticleDetailsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { isLeader } = useTeam();
 
   const [article, setArticle] = useState(null);
   const [categories, setCategories] = useState([]);
@@ -152,7 +154,7 @@ export default function ArticleDetailsPage() {
               <span>{copied ? 'Copied' : 'Share'}</span>
             </button>
 
-            {isAuthor && (
+            {isLeader && (
               <>
                 <button
                   onClick={() => setIsEditModalOpen(true)}

@@ -11,6 +11,10 @@ const CalendarController = {
    */
   async createEvent(req, res, next) {
     try {
+      if (req.teamRole !== 'leader') {
+        return sendError(res, 'Access denied. Only team leaders can create calendar events.', 403);
+      }
+
       const { title, description, start_datetime, end_datetime, location } = req.body;
 
       if (!title || typeof title !== 'string' || !title.trim()) {
@@ -118,8 +122,8 @@ const CalendarController = {
         return sendError(res, 'Calendar event not found.', 404);
       }
 
-      if (existing.created_by !== req.user.id && req.teamRole !== 'leader') {
-        return sendError(res, 'You can only modify calendar events you created or as a team leader.', 403);
+      if (req.teamRole !== 'leader') {
+        return sendError(res, 'Access denied. Only team leaders can edit calendar events.', 403);
       }
 
       const { title, description, start_datetime, end_datetime, location } = req.body;
@@ -168,8 +172,8 @@ const CalendarController = {
         return sendError(res, 'Calendar event not found.', 404);
       }
 
-      if (existing.created_by !== req.user.id && req.teamRole !== 'leader') {
-        return sendError(res, 'You can only delete calendar events you created or as a team leader.', 403);
+      if (req.teamRole !== 'leader') {
+        return sendError(res, 'Access denied. Only team leaders can delete calendar events.', 403);
       }
 
       const deleted = await CalendarEventModel.delete(existing.id);

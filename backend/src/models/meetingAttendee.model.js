@@ -48,6 +48,13 @@ const MeetingAttendeeModel = {
   },
 
   /**
+   * Find all attendees for a meeting (alias for getAttendees)
+   */
+  async findAllByMeeting(meetingId) {
+    return this.getAttendees(meetingId);
+  },
+
+  /**
    * Update attendee response status
    */
   async updateResponse({ meetingId, userId, responseStatus }) {

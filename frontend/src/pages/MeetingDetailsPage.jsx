@@ -21,8 +21,9 @@ import {
   HelpCircle,
 } from 'lucide-react';
 import { meetingService } from '../services/meetingService';
-import { userService } from '../services/userService';
+import { teamService } from '../services/teamService';
 import { useAuth } from '../context/AuthContext';
+import { useTeam } from '../context/TeamContext';
 import MeetingModal from '../components/meetings/MeetingModal';
 import DeleteMeetingModal from '../components/meetings/DeleteMeetingModal';
 
@@ -30,6 +31,7 @@ export default function MeetingDetailsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { currentTeam, isLeader } = useTeam();
 
   const [meeting, setMeeting] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -62,11 +64,7 @@ export default function MeetingDetailsPage() {
     setLoading(true);
     setError(null);
     try {
-      const [resMeeting, resUsers] = await Promise.all([
-        meetingService.getMeeting(id),
-        userService.getUsers().catch(() => ({ data: { users: [] } })),
-      ]);
-
+      const resMeeting = await meetingService.getMeeting(id);
       const m = resMeeting?.data?.meeting || resMeeting?.meeting || resMeeting?.data;
       if (m) {
         setMeeting(m);
@@ -79,8 +77,13 @@ export default function MeetingDetailsPage() {
           });
         }
       }
-      const uList = resUsers?.data?.users || resUsers?.users || resUsers?.data || [];
-      setAllUsers(Array.isArray(uList) ? uList.filter(Boolean) : []);
+
+      const teamIdToFetch = currentTeam?.id || m?.team_id;
+      if (teamIdToFetch) {
+        const resMembers = await teamService.getTeamMembers(teamIdToFetch).catch(() => ({ data: { members: [] } }));
+        const mList = resMembers?.data?.members || resMembers?.members || [];
+        setAllUsers(Array.isArray(mList) ? mList.map((tm) => ({ id: tm.user_id, name: tm.user_name, email: tm.user_email })) : []);
+      }
     } catch (err) {
       setError(err.message || 'Failed to load meeting.');
     } finally {
@@ -90,7 +93,7 @@ export default function MeetingDetailsPage() {
 
   useEffect(() => {
     fetchMeeting();
-  }, [id]);
+  }, [id, currentTeam?.id]);
 
   const handleUpdateMeeting = async (formData) => {
     setSubmittingMeeting(true);
@@ -281,7 +284,7 @@ export default function MeetingDetailsPage() {
               </p>
             </div>
 
-            {isOrganizer && (
+            {isLeader && (
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setEditModalOpen(true)}
@@ -404,7 +407,7 @@ export default function MeetingDetailsPage() {
             </div>
 
             {/* Add Attendee Dropdown Form */}
-            {isOrganizer && availableUsers.length > 0 && (
+            {isLeader && availableUsers.length > 0 && (
               <form onSubmit={handleAddAttendee} className="flex items-center gap-2">
                 <select
                   value={selectedUserId}
@@ -469,7 +472,7 @@ export default function MeetingDetailsPage() {
                       {att.response_status}
                     </span>
 
-                    {(isOrganizer || isMe) && (
+                    {(isLeader || isMe) && (
                       <button
                         onClick={() => handleRemoveAttendee(att.user_id)}
                         title={isMe ? 'Leave meeting' : 'Remove attendee'}
@@ -493,7 +496,7 @@ export default function MeetingDetailsPage() {
               <h2 className="text-lg font-bold text-slate-900">Meeting Minutes & Notes</h2>
             </div>
 
-            {!isEditingMinutes && meeting.minutes && (
+            {!isEditingMinutes && meeting.minutes && isLeader && (
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setIsEditingMinutes(true)}
@@ -573,15 +576,19 @@ export default function MeetingDetailsPage() {
               <FileText className="w-10 h-10 text-slate-300 mx-auto" />
               <h3 className="text-sm font-bold text-slate-800">No Minutes Recorded Yet</h3>
               <p className="text-xs text-slate-500 max-w-sm mx-auto">
-                Record the meeting summary, discussions, decisions, and action items for team review.
+                {isLeader
+                  ? 'Record the meeting summary, discussions, decisions, and action items for team review.'
+                  : 'Meeting minutes have not been recorded by the team leader yet.'}
               </p>
-              <button
-                onClick={() => setIsEditingMinutes(true)}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-medium cursor-pointer shadow-xs"
-              >
-                <FileText className="w-3.5 h-3.5" />
-                <span>Record Meeting Minutes</span>
-              </button>
+              {isLeader && (
+                <button
+                  onClick={() => setIsEditingMinutes(true)}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-medium cursor-pointer shadow-xs"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  <span>Record Minutes</span>
+                </button>
+              )}
             </div>
           )}
 

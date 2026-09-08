@@ -8,6 +8,10 @@ const { sendSuccess, sendError } = require('../utils/response');
 const KbArticleController = {
   async createArticle(req, res, next) {
     try {
+      if (req.teamRole !== 'leader') {
+        return sendError(res, 'Access denied. Only team leaders can create knowledge base articles.', 403);
+      }
+
       const { title, content, category_id, status } = req.body;
 
       if (!title || typeof title !== 'string' || !title.trim()) {
@@ -91,8 +95,8 @@ const KbArticleController = {
         return sendError(res, 'Article not found.', 404);
       }
 
-      if (existing.author_id !== req.user.id && req.teamRole !== 'leader') {
-        return sendError(res, 'You can only edit articles you authored or as a team leader.', 403);
+      if (req.teamRole !== 'leader') {
+        return sendError(res, 'Access denied. Only team leaders can edit knowledge base articles.', 403);
       }
 
       const { title, content, category_id, status } = req.body;
@@ -145,8 +149,8 @@ const KbArticleController = {
         return sendError(res, 'Article not found.', 404);
       }
 
-      if (existing.author_id !== req.user.id && req.teamRole !== 'leader') {
-        return sendError(res, 'You can only delete articles you authored or as a team leader.', 403);
+      if (req.teamRole !== 'leader') {
+        return sendError(res, 'Access denied. Only team leaders can delete knowledge base articles.', 403);
       }
 
       const deleted = await KbArticleModel.delete(existing.id);

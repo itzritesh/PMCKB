@@ -20,8 +20,10 @@ import EventModal from '../components/calendar/EventModal';
 import DeleteEventModal from '../components/calendar/DeleteEventModal';
 import PriorityBadge from '../components/tasks/PriorityBadge';
 import TaskStatusPill from '../components/tasks/TaskStatusPill';
+import { useTeam } from '../context/TeamContext';
 
 export default function CalendarPage() {
+  const { currentTeam, isLeader } = useTeam();
   const [events, setEvents] = useState([]);
   const [tasks, setTasks] = useState([]);
   const [meetings, setMeetings] = useState([]);
@@ -66,7 +68,7 @@ export default function CalendarPage() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [currentTeam?.id]);
 
   const handleCreateEvent = () => {
     setEditingEvent(null);
@@ -218,13 +220,15 @@ export default function CalendarPage() {
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
-            <button
-              onClick={handleCreateEvent}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs sm:text-sm font-medium transition-all shadow-xs cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>New Event</span>
-            </button>
+            {isLeader && (
+              <button
+                onClick={handleCreateEvent}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs sm:text-sm font-medium transition-all shadow-xs cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>New Event</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -358,7 +362,7 @@ export default function CalendarPage() {
                       </div>
 
                       {/* Item controls */}
-                      {item.type === 'event' && (
+                      {item.type === 'event' && isLeader && (
                         <div className="flex items-center gap-1">
                           <button
                             onClick={() => handleEditEvent(item.original)}

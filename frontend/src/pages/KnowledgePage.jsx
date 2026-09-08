@@ -165,13 +165,15 @@ export default function KnowledgePage() {
                 <span>Categories</span>
               </button>
             )}
-            <button
-              onClick={handleOpenCreateArticle}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs sm:text-sm font-medium transition-all shadow-xs cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>New Article</span>
-            </button>
+            {isLeader && (
+              <button
+                onClick={handleOpenCreateArticle}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs sm:text-sm font-medium transition-all shadow-xs cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>New Article</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -346,7 +348,7 @@ export default function KnowledgePage() {
                           </span>
                         </div>
 
-                        {isAuthor && (
+                        {isLeader && (
                           <div className="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition-opacity">
                             <button
                               type="button"
