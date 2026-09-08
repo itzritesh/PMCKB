@@ -14,6 +14,11 @@ const TaskController = {
    */
   async createTask(req, res, next) {
     try {
+      // Enforce Leader role requirement: Members cannot create tasks
+      if (req.teamRole !== 'leader') {
+        return sendError(res, 'Access denied. Only team leaders can create tasks.', 403);
+      }
+
       const { project_id, title, description, status, priority, due_date, assigned_to } = req.body;
 
       const projectId = parseInt(project_id, 10);
@@ -63,7 +68,7 @@ const TaskController = {
         formattedDueDate = parsedDate.toISOString();
       }
 
-      // Role check: Arbitrary task assignment
+      // Assignment rule: Target assignee MUST belong to the same team as the project
       let assigneeId = null;
       if (assigned_to !== undefined && assigned_to !== null && assigned_to !== '') {
         const parsedUserId = parseInt(assigned_to, 10);
@@ -71,28 +76,13 @@ const TaskController = {
           return sendError(res, 'Invalid assigned_to user ID format.', 400);
         }
 
-        // Check if member is assigning to someone other than themselves
-        if (parsedUserId !== req.user.id && req.teamRole !== 'leader') {
-          return sendError(
-            res,
-            'Access denied. Only team leaders can assign tasks to other team members.',
-            403
-          );
-        }
-
-        // Verify assignee belongs to the same workspace or auto-add by leader
         const assigneeMembership = await TeamMemberModel.findByTeamAndUser(project.team_id, parsedUserId);
         if (!assigneeMembership) {
-          const targetUser = await UserModel.findById(parsedUserId);
-          if (targetUser && req.teamRole === 'leader') {
-            await TeamMemberModel.addMember({
-              teamId: project.team_id,
-              userId: parsedUserId,
-              role: 'member',
-            });
-          } else {
-            return sendError(res, 'Assignee must be a member of this workspace.', 400);
-          }
+          return sendError(
+            res,
+            'Target assignee must belong to the same team as the project. Cross-team assignment is not allowed.',
+            400
+          );
         }
 
         assigneeId = parsedUserId;
@@ -177,6 +167,61 @@ const TaskController = {
     try {
       const { title, description, status, priority, due_date, assigned_to } = req.body;
 
+      // Role check: If caller is a Member
+      if (req.teamRole === 'member') {
+        // 1. Members can only update their own assigned tasks
+        if (req.resource.assigned_to !== req.user.id) {
+          return sendError(
+            res,
+            'Access denied. Members can only update their own assigned tasks.',
+            403
+          );
+        }
+
+        // 2. Members can ONLY update status - reject changes to other properties
+        const hasTitleChange = title !== undefined && title.trim() !== req.resource.title;
+        const hasDescChange = description !== undefined && description.trim() !== (req.resource.description || '');
+        const hasPriorityChange = priority !== undefined && priority !== req.resource.priority;
+        const hasAssigneeChange = assigned_to !== undefined && assigned_to !== req.resource.assigned_to;
+        
+        let hasDateChange = false;
+        if (due_date !== undefined) {
+          const reqTime = due_date ? new Date(due_date).getTime() : null;
+          const currTime = req.resource.due_date ? new Date(req.resource.due_date).getTime() : null;
+          if (reqTime !== currTime) hasDateChange = true;
+        }
+
+        if (hasTitleChange || hasDescChange || hasPriorityChange || hasAssigneeChange || hasDateChange) {
+          return sendError(
+            res,
+            'Access denied. Members can only update the status of their assigned tasks.',
+            403
+          );
+        }
+
+        const taskStatus = status || req.resource.status;
+        if (!ALLOWED_STATUSES.includes(taskStatus)) {
+          return sendError(
+            res,
+            `Invalid task status. Allowed values are: ${ALLOWED_STATUSES.join(', ')}`,
+            400
+          );
+        }
+
+        const updatedTask = await TaskModel.update({
+          id: req.resource.id,
+          title: req.resource.title,
+          description: req.resource.description,
+          status: taskStatus,
+          priority: req.resource.priority,
+          dueDate: req.resource.due_date,
+          assignedTo: req.resource.assigned_to,
+        });
+
+        return sendSuccess(res, { task: updatedTask }, 'Task status updated successfully');
+      }
+
+      // Leader flow:
       if (!title || typeof title !== 'string' || !title.trim()) {
         return sendError(res, 'Task title is required and cannot be empty.', 400);
       }
@@ -216,14 +261,9 @@ const TaskController = {
         }
       }
 
-      // Role check: Arbitrary task assignment
       let assigneeId = req.resource.assigned_to;
       if (assigned_to !== undefined) {
         if (assigned_to === null || assigned_to === '') {
-          // If non-leader attempts to unassign someone else
-          if (req.resource.assigned_to && req.resource.assigned_to !== req.user.id && req.teamRole !== 'leader') {
-            return sendError(res, 'Access denied. Only team leaders can modify other members’ assignments.', 403);
-          }
           assigneeId = null;
         } else {
           const parsedUserId = parseInt(assigned_to, 10);
@@ -231,26 +271,13 @@ const TaskController = {
             return sendError(res, 'Invalid assigned_to user ID format.', 400);
           }
 
-          if (parsedUserId !== req.user.id && req.teamRole !== 'leader') {
-            return sendError(
-              res,
-              'Access denied. Only team leaders can assign tasks to other team members.',
-              403
-            );
-          }
-
           const assigneeMembership = await TeamMemberModel.findByTeamAndUser(req.resource.team_id, parsedUserId);
           if (!assigneeMembership) {
-            const targetUser = await UserModel.findById(parsedUserId);
-            if (targetUser && req.teamRole === 'leader') {
-              await TeamMemberModel.addMember({
-                teamId: req.resource.team_id,
-                userId: parsedUserId,
-                role: 'member',
-              });
-            } else {
-              return sendError(res, 'Assignee must be a member of this workspace.', 400);
-            }
+            return sendError(
+              res,
+              'Target assignee must belong to the same team as the project. Cross-team assignment is not allowed.',
+              400
+            );
           }
 
           assigneeId = parsedUserId;
@@ -274,11 +301,15 @@ const TaskController = {
   },
 
   /**
-   * Assign or unassign a task
+   * Assign or unassign a task (Leader only)
    * PUT /api/tasks/:id/assign
    */
   async assignTask(req, res, next) {
     try {
+      if (req.teamRole !== 'leader') {
+        return sendError(res, 'Access denied. Only team leaders can assign tasks.', 403);
+      }
+
       const { assigned_to } = req.body;
 
       let assigneeId = null;
@@ -288,33 +319,16 @@ const TaskController = {
           return sendError(res, 'Invalid assigned_to user ID format.', 400);
         }
 
-        if (parsedUserId !== req.user.id && req.teamRole !== 'leader') {
+        const assigneeMembership = await TeamMemberModel.findByTeamAndUser(req.resource.team_id, parsedUserId);
+        if (!assigneeMembership) {
           return sendError(
             res,
-            'Access denied. Only team leaders can assign tasks to other team members.',
-            403
+            'Target assignee must belong to the same team as the project. Cross-team assignment is not allowed.',
+            400
           );
         }
 
-        const assigneeMembership = await TeamMemberModel.findByTeamAndUser(req.resource.team_id, parsedUserId);
-        if (!assigneeMembership) {
-          const targetUser = await UserModel.findById(parsedUserId);
-          if (targetUser && req.teamRole === 'leader') {
-            await TeamMemberModel.addMember({
-              teamId: req.resource.team_id,
-              userId: parsedUserId,
-              role: 'member',
-            });
-          } else {
-            return sendError(res, 'Assignee must be a member of this workspace.', 400);
-          }
-        }
-
         assigneeId = parsedUserId;
-      } else {
-        if (req.resource.assigned_to && req.resource.assigned_to !== req.user.id && req.teamRole !== 'leader') {
-          return sendError(res, 'Access denied. Only team leaders can modify other members’ assignments.', 403);
-        }
       }
 
       const updatedTask = await TaskModel.assign({
@@ -329,12 +343,12 @@ const TaskController = {
   },
 
   /**
-   * Delete a task (Leader or creator)
+   * Delete a task (Leader only)
    * DELETE /api/tasks/:id
    */
   async deleteTask(req, res, next) {
     try {
-      if (req.teamRole !== 'leader' && req.resource.assigned_to !== req.user.id) {
+      if (req.teamRole !== 'leader') {
         return sendError(res, 'Access denied. Only team leaders can delete tasks.', 403);
       }
 

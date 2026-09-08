@@ -14,6 +14,7 @@ import { projectService } from '../services/projectService';
 import { userService } from '../services/userService';
 import { teamService } from '../services/teamService';
 import { useTeam } from '../context/TeamContext';
+import { useAuth } from '../context/AuthContext';
 import TaskCard from '../components/tasks/TaskCard';
 import TaskModal from '../components/tasks/TaskModal';
 import DeleteTaskModal from '../components/tasks/DeleteTaskModal';
@@ -29,6 +30,7 @@ const STATUS_TABS = [
 
 export default function TasksPage() {
   const { currentTeam, isLeader } = useTeam();
+  const { user } = useAuth();
   const [tasks, setTasks] = useState([]);
   const [projects, setProjects] = useState([]);
   const [users, setUsers] = useState([]);
@@ -130,11 +132,15 @@ export default function TasksPage() {
   };
 
   const handleQuickStatusChange = async (task, nextStatus) => {
+    // If member, ensure task is assigned to current user
+    if (!isLeader && String(task.assigned_to) !== String(user?.id)) {
+      alert('You can only update the status of tasks assigned to you.');
+      return;
+    }
     try {
-      const res = await taskService.updateTask(task.id, {
-        ...task,
-        status: nextStatus,
-      });
+      // Members only send status update to avoid altering other fields
+      const payload = isLeader ? { ...task, status: nextStatus } : { status: nextStatus };
+      const res = await taskService.updateTask(task.id, payload);
       setTasks((prev) =>
         prev.map((t) => (t.id === task.id ? { ...res.data.task, project_name: t.project_name } : t))
       );
@@ -249,15 +255,17 @@ export default function TasksPage() {
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
-            <button
-              onClick={handleOpenCreateModal}
-              disabled={projects.length === 0}
-              title={projects.length === 0 ? 'Create a project first' : 'Add new task'}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs sm:text-sm font-medium transition-all shadow-xs cursor-pointer disabled:opacity-50"
-            >
-              <Plus className="w-4 h-4" />
-              <span>New Task</span>
-            </button>
+            {isLeader && (
+              <button
+                onClick={handleOpenCreateModal}
+                disabled={projects.length === 0}
+                title={projects.length === 0 ? 'Create a project first' : 'Add new task'}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs sm:text-sm font-medium transition-all shadow-xs cursor-pointer disabled:opacity-50"
+              >
+                <Plus className="w-4 h-4" />
+                <span>New Task</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -490,10 +498,10 @@ export default function TasksPage() {
                 key={task.id}
                 task={task}
                 users={users}
-                onEdit={handleOpenEditModal}
-                onDelete={handleOpenDeleteModal}
+                onEdit={isLeader ? handleOpenEditModal : null}
+                onDelete={isLeader ? handleOpenDeleteModal : null}
                 onStatusChange={handleQuickStatusChange}
-                onAssign={handleAssignTask}
+                onAssign={isLeader ? handleAssignTask : null}
                 onOpenDetails={setDetailsTask}
                 showProject={true}
               />

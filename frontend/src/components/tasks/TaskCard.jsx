@@ -105,20 +105,24 @@ export default function TaskCard({
                 <Circle className="w-4 h-4 text-slate-400 hover:text-indigo-600" />
               )}
             </button>
-            <button
-              onClick={() => onEdit(task)}
-              title="Edit Task"
-              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
-            >
-              <Edit3 className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={() => onDelete(task)}
-              title="Delete Task"
-              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-            >
-              <Trash2 className="w-3.5 h-3.5" />
-            </button>
+            {onEdit && (
+              <button
+                onClick={() => onEdit(task)}
+                title="Edit Task"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+              >
+                <Edit3 className="w-3.5 h-3.5" />
+              </button>
+            )}
+            {onDelete && (
+              <button
+                onClick={() => onDelete(task)}
+                title="Delete Task"
+                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -169,29 +173,49 @@ export default function TaskCard({
 
         {/* Assignee Indicator & Quick Reassign Trigger */}
         <div className="relative">
-          <button
-            type="button"
-            onClick={() => setShowAssignDropdown(!showAssignDropdown)}
-            title="Click to reassign or unassign"
-            className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer text-slate-700"
-          >
-            {task.assignee_name ? (
-              <>
-                <div className="w-5 h-5 rounded-full bg-indigo-600 text-[10px] font-bold text-white flex items-center justify-center shrink-0">
-                  {getInitials(task.assignee_name)}
-                </div>
-                <span className="max-w-[100px] truncate text-[11px] font-medium text-slate-800">
-                  {task.assignee_name}
-                </span>
-              </>
-            ) : (
-              <>
-                <UserX className="w-3.5 h-3.5 text-slate-400" />
-                <span className="text-[11px] text-slate-500">Unassigned</span>
-              </>
-            )}
-            <ChevronDown className="w-3 h-3 text-slate-400" />
-          </button>
+          {onAssign ? (
+            <button
+              type="button"
+              onClick={() => setShowAssignDropdown(!showAssignDropdown)}
+              title="Click to reassign or unassign"
+              className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer text-slate-700"
+            >
+              {task.assignee_name ? (
+                <>
+                  <div className="w-5 h-5 rounded-full bg-indigo-600 text-[10px] font-bold text-white flex items-center justify-center shrink-0">
+                    {getInitials(task.assignee_name)}
+                  </div>
+                  <span className="max-w-[100px] truncate text-[11px] font-medium text-slate-800">
+                    {task.assignee_name}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <UserX className="w-3.5 h-3.5 text-slate-400" />
+                  <span className="text-[11px] text-slate-500">Unassigned</span>
+                </>
+              )}
+              <ChevronDown className="w-3 h-3 text-slate-400" />
+            </button>
+          ) : (
+            <div className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-slate-50 border border-slate-200 text-slate-700">
+              {task.assignee_name ? (
+                <>
+                  <div className="w-5 h-5 rounded-full bg-indigo-600 text-[10px] font-bold text-white flex items-center justify-center shrink-0">
+                    {getInitials(task.assignee_name)}
+                  </div>
+                  <span className="max-w-[100px] truncate text-[11px] font-medium text-slate-800">
+                    {task.assignee_name}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <UserX className="w-3.5 h-3.5 text-slate-400" />
+                  <span className="text-[11px] text-slate-500">Unassigned</span>
+                </>
+              )}
+            </div>
+          )}
 
           {/* Quick Assign Dropdown Popover */}
           {showAssignDropdown && (

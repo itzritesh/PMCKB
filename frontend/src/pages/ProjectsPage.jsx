@@ -145,13 +145,15 @@ export default function ProjectsPage() {
             >
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
-            <button
-              onClick={handleOpenCreateModal}
-              className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs sm:text-sm font-medium transition-all shadow-xs cursor-pointer"
-            >
-              <FolderPlus className="w-4 h-4" />
-              <span>New Project</span>
-            </button>
+            {isLeader && (
+              <button
+                onClick={handleOpenCreateModal}
+                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs sm:text-sm font-medium transition-all shadow-xs cursor-pointer"
+              >
+                <FolderPlus className="w-4 h-4" />
+                <span>New Project</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -242,15 +244,17 @@ export default function ProjectsPage() {
             <p className="text-xs text-slate-500 leading-relaxed max-w-sm mx-auto">
               Get started by creating your first project. All project data is isolated to your user account and saved in PostgreSQL.
             </p>
-            <div className="pt-2">
-              <button
-                onClick={handleOpenCreateModal}
-                className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-medium transition-all shadow-xs cursor-pointer"
-              >
-                <FolderPlus className="w-4 h-4" />
-                <span>Create Your First Project</span>
-              </button>
-            </div>
+            {isLeader && (
+              <div className="pt-2">
+                <button
+                  onClick={handleOpenCreateModal}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-medium transition-all shadow-xs cursor-pointer"
+                >
+                  <FolderPlus className="w-4 h-4" />
+                  <span>Create Your First Project</span>
+                </button>
+              </div>
+            )}
           </div>
         )}
 
@@ -281,7 +285,7 @@ export default function ProjectsPage() {
               <ProjectCard
                 key={project.id}
                 project={project}
-                onEdit={handleOpenEditModal}
+                onEdit={isLeader ? handleOpenEditModal : null}
                 onDelete={isLeader ? handleOpenDeleteModal : null}
               />
             ))}

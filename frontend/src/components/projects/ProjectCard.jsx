@@ -43,13 +43,15 @@ export default function ProjectCard({ project, onEdit, onDelete }) {
         </div>
 
         <div className="flex items-center gap-1">
-          <button
-            onClick={() => onEdit(project)}
-            title="Edit Project"
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
-          >
-            <Edit3 className="w-3.5 h-3.5" />
-          </button>
+          {onEdit && (
+            <button
+              onClick={() => onEdit(project)}
+              title="Edit Project (Leader only)"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+            >
+              <Edit3 className="w-3.5 h-3.5" />
+            </button>
+          )}
           {onDelete && (
             <button
               onClick={() => onDelete(project)}

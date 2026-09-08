@@ -13,6 +13,11 @@ const ProjectController = {
    */
   async createProject(req, res, next) {
     try {
+      // Enforce Leader role requirement: Members cannot create projects
+      if (req.teamRole !== 'leader') {
+        return sendError(res, 'Access denied. Only team leaders can create projects.', 403);
+      }
+
       const { name, description, status } = req.body;
 
       // Validate project name
@@ -91,6 +96,11 @@ const ProjectController = {
    */
   async updateProject(req, res, next) {
     try {
+      // Enforce Leader role requirement: Members cannot edit project information
+      if (req.teamRole !== 'leader') {
+        return sendError(res, 'Access denied. Only team leaders can edit project information.', 403);
+      }
+
       const { name, description, status } = req.body;
 
       if (!name || typeof name !== 'string' || !name.trim()) {

@@ -18,6 +18,8 @@ import {
 import { projectService } from '../services/projectService';
 import { taskService } from '../services/taskService';
 import { userService } from '../services/userService';
+import { useAuth } from '../context/AuthContext';
+import { useTeam } from '../context/TeamContext';
 import StatusPill from '../components/projects/StatusPill';
 import ProjectModal from '../components/projects/ProjectModal';
 import DeleteConfirmModal from '../components/projects/DeleteConfirmModal';
@@ -37,6 +39,8 @@ const TASK_STATUS_TABS = [
 export default function ProjectDetailsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
+  const { isLeader } = useTeam();
 
   // Project states
   const [project, setProject] = useState(null);
@@ -166,9 +170,12 @@ export default function ProjectDetailsPage() {
   };
 
   const handleQuickStatusChange = async (task, nextStatus) => {
+    if (!isLeader && String(task.assigned_to) !== String(user?.id)) {
+      alert('Access denied. Members can only update the status of tasks assigned to them.');
+      return;
+    }
     try {
       const res = await taskService.updateTask(task.id, {
-        ...task,
         status: nextStatus,
       });
       setTasks((prev) =>
@@ -316,22 +323,24 @@ export default function ProjectDetailsPage() {
             </div>
 
             {/* Actions */}
-            <div className="flex items-center gap-2 sm:self-start">
-              <button
-                onClick={() => setEditModalOpen(true)}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-medium transition-colors cursor-pointer shadow-2xs"
-              >
-                <Edit3 className="w-3.5 h-3.5" />
-                <span>Edit</span>
-              </button>
-              <button
-                onClick={() => setDeleteModalOpen(true)}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-medium transition-colors cursor-pointer"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>Delete</span>
-              </button>
-            </div>
+            {isLeader && (
+              <div className="flex items-center gap-2 sm:self-start">
+                <button
+                  onClick={() => setEditModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-medium transition-colors cursor-pointer shadow-2xs"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Edit</span>
+                </button>
+                <button
+                  onClick={() => setDeleteModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-medium transition-colors cursor-pointer"
+                >
+                  <Trash2 className="w-3.5 h-3.5" />
+                  <span>Delete</span>
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Description */}
@@ -504,15 +513,17 @@ export default function ProjectDetailsPage() {
               <p className="text-xs text-slate-500 max-w-sm mx-auto">
                 Break this project down into actionable tasks with priorities and target deadlines.
               </p>
-              <div className="pt-2">
-                <button
-                  onClick={handleOpenCreateTask}
-                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium transition-colors cursor-pointer shadow-xs"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Create First Task</span>
-                </button>
-              </div>
+              {isLeader && (
+                <div className="pt-2">
+                  <button
+                    onClick={handleOpenCreateTask}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-medium transition-colors cursor-pointer shadow-xs"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Create First Task</span>
+                  </button>
+                </div>
+              )}
             </div>
           )}
 
@@ -545,10 +556,10 @@ export default function ProjectDetailsPage() {
                   key={task.id}
                   task={task}
                   users={users}
-                  onEdit={handleOpenEditTask}
-                  onDelete={handleOpenDeleteTask}
+                  onEdit={isLeader ? handleOpenEditTask : null}
+                  onDelete={isLeader ? handleOpenDeleteTask : null}
                   onStatusChange={handleQuickStatusChange}
-                  onAssign={handleAssignTask}
+                  onAssign={isLeader ? handleAssignTask : null}
                   onOpenDetails={setDetailsTask}
                 />
               ))}

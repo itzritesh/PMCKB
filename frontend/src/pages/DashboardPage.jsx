@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useTeam } from '../context/TeamContext';
+import { teamService } from '../services/teamService';
 import {
   ShieldCheck,
   KeyRound,
@@ -44,6 +46,7 @@ import TaskStatusPill from '../components/tasks/TaskStatusPill';
 
 export default function DashboardPage() {
   const { user } = useAuth();
+  const { currentTeam, isLeader } = useTeam();
   const navigate = useNavigate();
 
   // Data states
@@ -77,20 +80,40 @@ export default function DashboardPage() {
 
   const fetchData = async () => {
     try {
-      const [projRes, tasksRes, usersRes, eventsRes, meetingsRes, articlesRes] = await Promise.all([
+      const [projRes, tasksRes, eventsRes, meetingsRes, articlesRes] = await Promise.all([
         projectService.getProjects(),
         taskService.getAllTasks(),
-        userService.getUsers().catch(() => ({ data: { users: [] } })),
         calendarService.getEvents().catch(() => ({ data: { events: [] } })),
         meetingService.getMeetings().catch(() => ({ data: { meetings: [] } })),
         knowledgeService.getArticles({ status: 'published' }).catch(() => ({ data: { articles: [] } })),
       ]);
       setProjects(projRes.data?.projects || []);
       setTasks(tasksRes.data?.tasks || []);
-      setUsers(usersRes.data?.users || []);
       setEvents(eventsRes.data?.events || []);
       setMeetings(meetingsRes.data?.meetings || []);
       setArticles(articlesRes.data?.articles || []);
+
+      // Load team members if team is selected
+      if (currentTeam?.id) {
+        try {
+          const memRes = await teamService.getTeamMembers(currentTeam.id);
+          const members = memRes.data?.members || [];
+          setUsers(
+            members.map((m) => ({
+              id: m.user_id,
+              name: m.name,
+              email: m.email,
+              role: m.role,
+            }))
+          );
+        } catch {
+          const usersRes = await userService.getUsers().catch(() => ({ data: { users: [] } }));
+          setUsers(usersRes.data?.users || []);
+        }
+      } else {
+        const usersRes = await userService.getUsers().catch(() => ({ data: { users: [] } }));
+        setUsers(usersRes.data?.users || []);
+      }
     } catch (err) {
       console.warn('Failed to load dashboard data:', err);
     } finally {
@@ -100,7 +123,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [currentTeam?.id]);
 
   const handleTestProtectedApi = async () => {
     setTesting(true);
@@ -148,9 +171,12 @@ export default function DashboardPage() {
   };
 
   const handleQuickStatusChange = async (task, nextStatus) => {
+    if (!isLeader && String(task.assigned_to) !== String(user?.id)) {
+      alert('Access denied. Members can only update the status of tasks assigned to them.');
+      return;
+    }
     try {
       const res = await taskService.updateTask(task.id, {
-        ...task,
         status: nextStatus,
       });
       setTasks((prev) =>
@@ -161,9 +187,11 @@ export default function DashboardPage() {
     }
   };
 
-  // Metrics
+  // Leader Metrics
   const totalProjects = projects.length;
   const totalTasks = tasks.length;
+  const assignedTeamTasks = tasks.filter((t) => t.assigned_to).length;
+  const unassignedTeamTasks = totalTasks - assignedTeamTasks;
   const inProgressTasks = tasks.filter((t) => t.status === 'in_progress').length;
   const completedTasks = tasks.filter((t) => t.status === 'completed').length;
   const overdueTasksList = tasks.filter(
@@ -174,6 +202,21 @@ export default function DashboardPage() {
   );
   const overdueCount = overdueTasksList.length;
   const completionRate = totalTasks > 0 ? Math.round((completedTasks / totalTasks) * 100) : 0;
+
+  // Member Metrics
+  const myTasks = tasks.filter((t) => String(t.assigned_to) === String(user?.id));
+  const myTasksCount = myTasks.length;
+  const myCompletedCount = myTasks.filter((t) => t.status === 'completed').length;
+  const myInProgressCount = myTasks.filter((t) => t.status === 'in_progress').length;
+  const myDeadlines = myTasks.filter((t) => t.due_date && t.status !== 'completed');
+  const myDeadlinesCount = myDeadlines.length;
+  const myOverdueCount = myTasks.filter(
+    (t) =>
+      t.due_date &&
+      new Date(t.due_date).getTime() < Date.now() &&
+      t.status !== 'completed'
+  ).length;
+  const myCompletionRate = myTasksCount > 0 ? Math.round((myCompletedCount / myTasksCount) * 100) : 0;
 
   // New Feature Metrics
   const upcomingMeetings = meetings.filter(
@@ -241,6 +284,8 @@ export default function DashboardPage() {
     const matchesAssignee =
       taskAssigneeFilter === 'all'
         ? true
+        : taskAssigneeFilter === 'mine'
+        ? String(t.assigned_to) === String(user?.id)
         : taskAssigneeFilter === 'unassigned'
         ? !t.assigned_to
         : String(t.assigned_to) === String(taskAssigneeFilter);
@@ -298,115 +343,231 @@ export default function DashboardPage() {
         <div className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-xs">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
             <div className="space-y-2">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-medium">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                <span>JWT Authentication & Neon PostgreSQL Active</span>
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-semibold">
+                <ShieldCheck className="w-3.5 h-3.5 text-indigo-600" />
+                <span>
+                  {isLeader ? 'Leader View' : 'Member View'} • {currentTeam?.name || 'Active Workspace'}
+                </span>
               </div>
               <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-slate-900 tracking-tight">
                 Welcome back, {user?.name || 'Workspace Member'}!
               </h1>
               <p className="text-xs sm:text-sm text-slate-500 max-w-2xl leading-relaxed">
-                Here is your complete project, meeting, schedule, and documentation summary. You have <strong>{totalTasks} deliverables</strong>, <strong>{upcomingMeetings.length} upcoming meetings</strong>, and <strong>{publishedArticlesCount} published knowledge articles</strong>.
+                {isLeader ? (
+                  <>
+                    Team overview for <strong>{currentTeam?.name || 'your workspace'}</strong>: You have{' '}
+                    <strong>{totalProjects} team projects</strong>, <strong>{totalTasks} total tasks</strong>,{' '}
+                    <strong>{assignedTeamTasks} assigned deliverables</strong>, and overall team progress is at{' '}
+                    <strong>{completionRate}%</strong>.
+                  </>
+                ) : (
+                  <>
+                    Personal workspace summary for <strong>{currentTeam?.name || 'your workspace'}</strong>: You have{' '}
+                    <strong>{myTasksCount} deliverables assigned to you</strong>,{' '}
+                    <strong>{myDeadlinesCount} active deadlines</strong>, and access to{' '}
+                    <strong>{totalProjects} relevant projects</strong>.
+                  </>
+                )}
               </p>
             </div>
 
             <div className="flex flex-wrap items-center gap-2.5">
-              <button
-                onClick={() => setProjectModalOpen(true)}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs sm:text-sm font-medium transition-all shadow-xs cursor-pointer"
-              >
-                <FolderPlus className="w-4 h-4" />
-                <span>New Project</span>
-              </button>
+              {isLeader ? (
+                <>
+                  <button
+                    onClick={() => setProjectModalOpen(true)}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs sm:text-sm font-medium transition-all shadow-xs cursor-pointer"
+                  >
+                    <FolderPlus className="w-4 h-4" />
+                    <span>New Project</span>
+                  </button>
 
-              <button
-                onClick={() => setTaskModalOpen(true)}
-                disabled={projects.length === 0}
-                className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs sm:text-sm font-medium transition-all shadow-xs cursor-pointer disabled:opacity-50"
-              >
-                <Plus className="w-4 h-4" />
-                <span>New Task</span>
-              </button>
+                  <button
+                    onClick={() => setTaskModalOpen(true)}
+                    disabled={projects.length === 0}
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs sm:text-sm font-medium transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>New Task</span>
+                  </button>
+                </>
+              ) : (
+                <>
+                  <Link
+                    to="/projects"
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs sm:text-sm font-medium transition-all shadow-xs"
+                  >
+                    <FolderGit2 className="w-4 h-4 text-indigo-600" />
+                    <span>Relevant Projects</span>
+                  </Link>
+
+                  <Link
+                    to="/tasks"
+                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-medium transition-all shadow-xs"
+                  >
+                    <CheckSquare className="w-4 h-4" />
+                    <span>My Tasks ({myTasksCount})</span>
+                  </Link>
+                </>
+              )}
             </div>
           </div>
         </div>
 
-        {/* 5 Core Delivery Metric Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
-          {/* Card 1: Total Projects */}
-          <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-slate-500">Total Projects</span>
-              <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-                <FolderGit2 className="w-4 h-4" />
+        {/* 5 Core Delivery Metric Cards (Dynamic Leader vs Member) */}
+        {isLeader ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+            {/* Card 1: Team Projects */}
+            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-slate-500">Team Projects</span>
+                <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                  <FolderGit2 className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="flex items-baseline justify-between">
+                <span className="text-2xl sm:text-3xl font-extrabold text-slate-900">{totalProjects}</span>
+                <span className="text-[11px] text-indigo-600 font-medium">Workspace</span>
               </div>
             </div>
-            <div className="flex items-baseline justify-between">
-              <span className="text-2xl sm:text-3xl font-extrabold text-slate-900">{totalProjects}</span>
-              <span className="text-[11px] text-indigo-600 font-medium">Workspaces</span>
-            </div>
-          </div>
 
-          {/* Card 2: Total Tasks */}
-          <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-slate-500">Total Tasks</span>
-              <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
-                <CheckSquare className="w-4 h-4" />
+            {/* Card 2: Team Tasks */}
+            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-slate-500">Team Tasks</span>
+                <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <CheckSquare className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="flex items-baseline justify-between">
+                <span className="text-2xl sm:text-3xl font-extrabold text-blue-600">{totalTasks}</span>
+                <span className="text-[11px] text-slate-400 font-medium">Deliverables</span>
               </div>
             </div>
-            <div className="flex items-baseline justify-between">
-              <span className="text-2xl sm:text-3xl font-extrabold text-blue-600">{totalTasks}</span>
-              <span className="text-[11px] text-slate-400 font-medium">Deliverables</span>
-            </div>
-          </div>
 
-          {/* Card 3: In Progress */}
-          <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-amber-700">In Progress</span>
-              <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
-                <Clock className="w-4 h-4" />
+            {/* Card 3: Assigned Tasks */}
+            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-purple-700">Assigned Tasks</span>
+                <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+                  <Users className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="flex items-baseline justify-between">
+                <span className="text-2xl sm:text-3xl font-extrabold text-purple-600">{assignedTeamTasks}</span>
+                <span className="text-[11px] text-slate-400 font-medium">{unassignedTeamTasks} Unassigned</span>
               </div>
             </div>
-            <div className="flex items-baseline justify-between">
-              <span className="text-2xl sm:text-3xl font-extrabold text-amber-600">{inProgressTasks}</span>
-              <span className="text-[11px] text-amber-700 font-medium">Active</span>
-            </div>
-          </div>
 
-          {/* Card 4: Completed */}
-          <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-emerald-700">Completed</span>
-              <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                <CheckCircle2 className="w-4 h-4" />
+            {/* Card 4: Team Progress */}
+            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-emerald-700">Team Progress</span>
+                <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                  <CheckCircle2 className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="flex items-baseline justify-between">
+                <span className="text-2xl sm:text-3xl font-extrabold text-emerald-600">{completionRate}%</span>
+                <span className="text-[11px] text-emerald-700 font-medium">{completedTasks}/{totalTasks} Done</span>
               </div>
             </div>
-            <div className="flex items-baseline justify-between">
-              <span className="text-2xl sm:text-3xl font-extrabold text-emerald-600">{completedTasks}</span>
-              <span className="text-[11px] text-emerald-700 font-medium">{completionRate}% Done</span>
-            </div>
-          </div>
 
-          {/* Card 5: Overdue */}
-          <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs col-span-2 sm:col-span-1">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-xs font-semibold text-rose-700">Overdue</span>
-              <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${overdueCount > 0 ? 'bg-rose-50 text-rose-600' : 'bg-slate-100 text-slate-400'}`}>
-                <AlertTriangle className={`w-4 h-4 ${overdueCount > 0 ? 'animate-bounce' : ''}`} />
+            {/* Card 5: Overdue Alerts */}
+            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs col-span-2 sm:col-span-1">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-rose-700">Overdue Tasks</span>
+                <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${overdueCount > 0 ? 'bg-rose-50 text-rose-600' : 'bg-slate-100 text-slate-400'}`}>
+                  <AlertTriangle className={`w-4 h-4 ${overdueCount > 0 ? 'animate-bounce' : ''}`} />
+                </div>
+              </div>
+              <div className="flex items-baseline justify-between">
+                <span className={`text-2xl sm:text-3xl font-extrabold ${overdueCount > 0 ? 'text-rose-600' : 'text-slate-900'}`}>
+                  {overdueCount}
+                </span>
+                <span className={`text-[11px] font-semibold ${overdueCount > 0 ? 'text-rose-600' : 'text-slate-400'}`}>
+                  {overdueCount > 0 ? 'Attention Needed' : 'On Track'}
+                </span>
               </div>
             </div>
-            <div className="flex items-baseline justify-between">
-              <span className={`text-2xl sm:text-3xl font-extrabold ${overdueCount > 0 ? 'text-rose-600' : 'text-slate-900'}`}>
-                {overdueCount}
-              </span>
-              <span className={`text-[11px] font-semibold ${overdueCount > 0 ? 'text-rose-600' : 'text-slate-400'}`}>
-                {overdueCount > 0 ? 'Attention Needed' : 'On Track'}
-              </span>
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
+            {/* Card 1: Relevant Projects */}
+            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-slate-500">Relevant Projects</span>
+                <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                  <FolderGit2 className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="flex items-baseline justify-between">
+                <span className="text-2xl sm:text-3xl font-extrabold text-slate-900">{totalProjects}</span>
+                <span className="text-[11px] text-indigo-600 font-medium">Accessible</span>
+              </div>
+            </div>
+
+            {/* Card 2: My Tasks */}
+            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-slate-500">My Tasks</span>
+                <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
+                  <CheckSquare className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="flex items-baseline justify-between">
+                <span className="text-2xl sm:text-3xl font-extrabold text-blue-600">{myTasksCount}</span>
+                <span className="text-[11px] text-slate-400 font-medium">{myInProgressCount} Active</span>
+              </div>
+            </div>
+
+            {/* Card 3: My Deadlines */}
+            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-amber-700">My Deadlines</span>
+                <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                  <Clock className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="flex items-baseline justify-between">
+                <span className="text-2xl sm:text-3xl font-extrabold text-amber-600">{myDeadlinesCount}</span>
+                <span className="text-[11px] text-amber-700 font-medium">Pending Due</span>
+              </div>
+            </div>
+
+            {/* Card 4: My Progress */}
+            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-emerald-700">My Completed</span>
+                <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                  <CheckCircle2 className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="flex items-baseline justify-between">
+                <span className="text-2xl sm:text-3xl font-extrabold text-emerald-600">{myCompletedCount}</span>
+                <span className="text-[11px] text-emerald-700 font-medium">{myCompletionRate}% Done</span>
+              </div>
+            </div>
+
+            {/* Card 5: My Overdue Alert */}
+            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs col-span-2 sm:col-span-1">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-rose-700">My Overdue</span>
+                <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${myOverdueCount > 0 ? 'bg-rose-50 text-rose-600' : 'bg-slate-100 text-slate-400'}`}>
+                  <AlertTriangle className={`w-4 h-4 ${myOverdueCount > 0 ? 'animate-bounce' : ''}`} />
+                </div>
+              </div>
+              <div className="flex items-baseline justify-between">
+                <span className={`text-2xl sm:text-3xl font-extrabold ${myOverdueCount > 0 ? 'text-rose-600' : 'text-slate-900'}`}>
+                  {myOverdueCount}
+                </span>
+                <span className={`text-[11px] font-semibold ${myOverdueCount > 0 ? 'text-rose-600' : 'text-slate-400'}`}>
+                  {myOverdueCount > 0 ? 'Action Needed' : 'On Track'}
+                </span>
+              </div>
             </div>
           </div>
-        </div>
+        )}
 
         {/* 4 Collaborative KPI Cards: Meetings, Events, KB, Invitations */}
         <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
@@ -840,25 +1001,35 @@ export default function DashboardPage() {
                     className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200 hover:border-slate-300 shadow-xs transition-all flex items-center justify-between gap-4 group"
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      <button
-                        onClick={() => {
-                          const next =
-                            task.status === 'todo'
-                              ? 'in_progress'
-                              : task.status === 'in_progress'
-                              ? 'completed'
-                              : 'todo';
-                          handleQuickStatusChange(task, next);
-                        }}
-                        title="Advance status"
-                        className="text-slate-400 hover:text-indigo-600 transition-colors cursor-pointer shrink-0"
-                      >
-                        {task.status === 'completed' ? (
-                          <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                        ) : (
-                          <Circle className="w-5 h-5" />
-                        )}
-                      </button>
+                      {isLeader || String(task.assigned_to) === String(user?.id) ? (
+                        <button
+                          onClick={() => {
+                            const next =
+                              task.status === 'todo'
+                                ? 'in_progress'
+                                : task.status === 'in_progress'
+                                ? 'completed'
+                                : 'todo';
+                            handleQuickStatusChange(task, next);
+                          }}
+                          title="Advance status"
+                          className="text-slate-400 hover:text-indigo-600 transition-colors cursor-pointer shrink-0"
+                        >
+                          {task.status === 'completed' ? (
+                            <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                          ) : (
+                            <Circle className="w-5 h-5" />
+                          )}
+                        </button>
+                      ) : (
+                        <div className="text-slate-300 shrink-0" title="Only the assignee or team leader can update status">
+                          {task.status === 'completed' ? (
+                            <CheckCircle2 className="w-5 h-5 text-emerald-600 opacity-60" />
+                          ) : (
+                            <Circle className="w-5 h-5" />
+                          )}
+                        </div>
+                      )}
 
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 flex-wrap mb-0.5">
