@@ -10,6 +10,7 @@ import {
   LogOut,
   X,
   Layers,
+  Briefcase,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -27,6 +28,13 @@ export default function Sidebar({ isOpen = false, onClose }) {
       to: '/dashboard',
       label: 'Dashboard',
       icon: LayoutDashboard,
+      activeColor: 'text-indigo-700 bg-indigo-50 border-indigo-200 font-semibold',
+      badge: 'Core',
+    },
+    {
+      to: '/teams',
+      label: 'Teams',
+      icon: Briefcase,
       activeColor: 'text-indigo-700 bg-indigo-50 border-indigo-200 font-semibold',
       badge: 'Core',
     },

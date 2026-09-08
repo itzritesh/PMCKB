@@ -10,6 +10,7 @@ const commentRoutes = require('./comment.routes');
 const calendarRoutes = require('./calendar.routes');
 const meetingRoutes = require('./meeting.routes');
 const kbRoutes = require('./kb.routes');
+const teamRoutes = require('./team.routes');
 
 // Mount routes under /api
 router.use('/health', healthRoutes);
@@ -22,5 +23,6 @@ router.use('/comments', commentRoutes);
 router.use('/calendar', calendarRoutes);
 router.use('/meetings', meetingRoutes);
 router.use('/kb', kbRoutes);
+router.use('/teams', teamRoutes);
 
 module.exports = router;

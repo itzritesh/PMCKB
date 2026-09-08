@@ -18,6 +18,8 @@ import MeetingDetailsPage from '../pages/MeetingDetailsPage';
 import CalendarPage from '../pages/CalendarPage';
 import KnowledgePage from '../pages/KnowledgePage';
 import ArticleDetailsPage from '../pages/ArticleDetailsPage';
+import TeamsPage from '../pages/TeamsPage';
+import TeamDetailsPage from '../pages/TeamDetailsPage';
 
 export default function AppRoutes() {
   const [backendStatus, setBackendStatus] = useState('checking');
@@ -61,6 +63,22 @@ export default function AppRoutes() {
             element={
               <ProtectedRoute>
                 <DashboardPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/teams"
+            element={
+              <ProtectedRoute>
+                <TeamsPage />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/teams/:id"
+            element={
+              <ProtectedRoute>
+                <TeamDetailsPage />
               </ProtectedRoute>
             }
           />
