@@ -20,6 +20,7 @@ import KnowledgePage from '../pages/KnowledgePage';
 import ArticleDetailsPage from '../pages/ArticleDetailsPage';
 import TeamsPage from '../pages/TeamsPage';
 import TeamDetailsPage from '../pages/TeamDetailsPage';
+import AcceptInvitePage from '../pages/AcceptInvitePage';
 
 export default function AppRoutes() {
   const [backendStatus, setBackendStatus] = useState('checking');
@@ -56,6 +57,9 @@ export default function AppRoutes() {
           {/* Authentication */}
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
+
+          {/* Team Invitation Link */}
+          <Route path="/invite/:token" element={<AcceptInvitePage />} />
 
           {/* Protected Application Modules */}
           <Route

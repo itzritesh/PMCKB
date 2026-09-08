@@ -11,6 +11,7 @@ const calendarRoutes = require('./calendar.routes');
 const meetingRoutes = require('./meeting.routes');
 const kbRoutes = require('./kb.routes');
 const teamRoutes = require('./team.routes');
+const invitationRoutes = require('./invitation.routes');
 const announcementRoutes = require('./announcement.routes');
 
 // Mount routes under /api
@@ -25,6 +26,7 @@ router.use('/calendar', calendarRoutes);
 router.use('/meetings', meetingRoutes);
 router.use('/kb', kbRoutes);
 router.use('/teams', teamRoutes);
+router.use('/invitations', invitationRoutes);
 router.use('/announcements', announcementRoutes);
 
 module.exports = router;

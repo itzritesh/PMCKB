@@ -10,6 +10,7 @@ const KbCategoryModel = require('./kbCategory.model');
 const KbArticleModel = require('./kbArticle.model');
 const TeamModel = require('./team.model');
 const TeamMemberModel = require('./teamMember.model');
+const TeamInvitationModel = require('./teamInvitation.model');
 const AnnouncementModel = require('./announcement.model');
 
 module.exports = {
@@ -25,5 +26,6 @@ module.exports = {
   KbArticleModel,
   TeamModel,
   TeamMemberModel,
+  TeamInvitationModel,
   AnnouncementModel,
 };

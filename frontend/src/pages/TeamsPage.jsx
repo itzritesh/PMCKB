@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import {
   Briefcase,
@@ -13,9 +13,14 @@ import {
   AlertCircle,
   X,
   Layers,
+  Mail,
+  Clock,
+  Check,
+  CheckCircle2,
 } from 'lucide-react';
 import { useTeam } from '../context/TeamContext';
 import { teamService } from '../services/teamService';
+import { invitationService } from '../services/invitationService';
 
 export default function TeamsPage() {
   const { teams, currentTeam, setCurrentTeam, refreshTeams, loading } = useTeam();
@@ -24,6 +29,69 @@ export default function TeamsPage() {
   const [createForm, setCreateForm] = useState({ name: '', description: '' });
   const [createLoading, setCreateLoading] = useState(false);
   const [createError, setCreateError] = useState('');
+
+  // Pending Invitations state (Phase 6)
+  const [pendingInvitations, setPendingInvitations] = useState([]);
+  const [invitesLoading, setInvitesLoading] = useState(false);
+  const [inviteActionToken, setInviteActionToken] = useState(null);
+  const [inviteNotice, setInviteNotice] = useState({ text: '', type: '' });
+
+  const fetchPendingInvitations = useCallback(async () => {
+    try {
+      setInvitesLoading(true);
+      const res = await invitationService.getUserInvitations();
+      setPendingInvitations(res.data?.invitations || []);
+    } catch (err) {
+      console.warn('Could not load user invitations:', err);
+    } finally {
+      setInvitesLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchPendingInvitations();
+  }, [fetchPendingInvitations]);
+
+  const handleAcceptInvite = async (token) => {
+    try {
+      setInviteActionToken(token);
+      const res = await invitationService.acceptInvitation(token);
+      setInviteNotice({
+        text: `Invitation accepted! You joined ${res.data?.teamName || 'the workspace'}.`,
+        type: 'success',
+      });
+      await refreshTeams();
+      await fetchPendingInvitations();
+      setTimeout(() => setInviteNotice({ text: '', type: '' }), 4000);
+    } catch (err) {
+      setInviteNotice({
+        text: err.response?.data?.message || 'Failed to accept invitation.',
+        type: 'error',
+      });
+    } finally {
+      setInviteActionToken(null);
+    }
+  };
+
+  const handleRejectInvite = async (token) => {
+    try {
+      setInviteActionToken(token);
+      await invitationService.rejectInvitation(token);
+      setInviteNotice({
+        text: 'Invitation declined.',
+        type: 'info',
+      });
+      await fetchPendingInvitations();
+      setTimeout(() => setInviteNotice({ text: '', type: '' }), 4000);
+    } catch (err) {
+      setInviteNotice({
+        text: err.response?.data?.message || 'Failed to decline invitation.',
+        type: 'error',
+      });
+    } finally {
+      setInviteActionToken(null);
+    }
+  };
 
   const filteredTeams = teams.filter(
     (t) =>
@@ -85,6 +153,132 @@ export default function TeamsPage() {
           <span>New Workspace</span>
         </button>
       </div>
+
+      {/* Notice Banner */}
+      {inviteNotice.text && (
+        <div
+          className={`p-4 rounded-2xl flex items-center justify-between text-xs font-semibold ${
+            inviteNotice.type === 'success'
+              ? 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+              : inviteNotice.type === 'error'
+              ? 'bg-rose-50 text-rose-800 border border-rose-200'
+              : 'bg-slate-100 text-slate-700 border border-slate-200'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {inviteNotice.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0" />
+            )}
+            <span>{inviteNotice.text}</span>
+          </div>
+          <button
+            onClick={() => setInviteNotice({ text: '', type: '' })}
+            className="text-slate-400 hover:text-slate-600 cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Member/User UI: Pending Invitations */}
+      {pendingInvitations.length > 0 && (
+        <div className="bg-gradient-to-r from-indigo-50/80 via-purple-50/50 to-white border border-indigo-100 rounded-3xl p-6 sm:p-7 shadow-2xs space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-indigo-600 text-white shadow-2xs">
+                <Mail className="w-4 h-4" />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                  <span>Pending Invitations</span>
+                  <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-indigo-600 text-white">
+                    {pendingInvitations.length}
+                  </span>
+                </h2>
+                <p className="text-xs text-slate-500">
+                  You have been invited to collaborate in these workspaces.
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+            {pendingInvitations.map((inv) => (
+              <div
+                key={inv.id}
+                className="bg-white border border-slate-200/80 rounded-2xl p-5 shadow-2xs hover:shadow-xs transition-shadow space-y-4 flex flex-col justify-between"
+              >
+                <div className="space-y-2">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-xl bg-indigo-50 text-indigo-700 flex items-center justify-center font-bold text-sm shrink-0">
+                        <Briefcase className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-900">{inv.team_name}</h3>
+                        <p className="text-[11px] text-slate-500 line-clamp-1">
+                          {inv.team_description || 'Collaborative workspace'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1 text-xs text-slate-600 pt-1">
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-slate-400">Invited by:</span>
+                      <span className="font-semibold text-slate-800">
+                        {inv.invited_by_name}
+                      </span>
+                      <span className="text-slate-400 font-mono text-[11px]">
+                        ({inv.invited_by_email})
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 text-slate-500">
+                      <Clock className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                      <span>
+                        Expires: {new Date(inv.expires_at).toLocaleDateString(undefined, {
+                          month: 'short',
+                          day: 'numeric',
+                          year: 'numeric',
+                        })}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2 pt-2 border-t border-slate-100">
+                  <button
+                    onClick={() => handleAcceptInvite(inv.token)}
+                    disabled={inviteActionToken === inv.token}
+                    className="flex-1 inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs transition-all cursor-pointer disabled:opacity-50"
+                  >
+                    {inviteActionToken === inv.token ? (
+                      <div className="w-3.5 h-3.5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <>
+                        <Check className="w-3.5 h-3.5" />
+                        <span>Accept</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={() => handleRejectInvite(inv.token)}
+                    disabled={inviteActionToken === inv.token}
+                    className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-600 hover:text-slate-800 border border-slate-200 text-xs font-medium transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    <span>Reject</span>
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
