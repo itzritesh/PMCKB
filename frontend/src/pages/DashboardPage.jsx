@@ -1,18 +1,24 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { useTeam } from '../context/TeamContext';
 import { teamService } from '../services/teamService';
+import { projectService } from '../services/projectService';
+import { taskService } from '../services/taskService';
+import { userService } from '../services/userService';
+import { calendarService } from '../services/calendarService';
+import { meetingService } from '../services/meetingService';
+import { knowledgeService } from '../services/knowledgeService';
+import { announcementService } from '../services/announcementService';
+import { authService } from '../services/authService';
+
 import {
-  ShieldCheck,
-  KeyRound,
   FolderGit2,
   Calendar,
   Users,
   BookOpen,
   CheckCircle2,
   ArrowRight,
-  Sparkles,
   FolderPlus,
   Clock,
   CheckSquare,
@@ -31,41 +37,43 @@ import {
   FileText,
   Megaphone,
   X,
+  ChevronDown,
+  UserPlus,
+  Settings,
+  Mail,
+  Crown,
+  UserCheck,
+  Check,
+  Sparkles,
+  KeyRound,
+  Shield,
+  Layers,
 } from 'lucide-react';
-import { authService } from '../services/authService';
-import { projectService } from '../services/projectService';
-import { taskService } from '../services/taskService';
-import { userService } from '../services/userService';
-import { calendarService } from '../services/calendarService';
-import { meetingService } from '../services/meetingService';
-import { knowledgeService } from '../services/knowledgeService';
-import { announcementService } from '../services/announcementService';
+
 import StatusPill from '../components/projects/StatusPill';
 import ProjectModal from '../components/projects/ProjectModal';
 import TaskModal from '../components/tasks/TaskModal';
 import TaskDetailsModal from '../components/tasks/TaskDetailsModal';
 import PriorityBadge from '../components/tasks/PriorityBadge';
 import TaskStatusPill from '../components/tasks/TaskStatusPill';
+import MeetingModal from '../components/meetings/MeetingModal';
+import InviteMemberModal from '../components/teams/InviteMemberModal';
 
 export default function DashboardPage() {
   const { user } = useAuth();
-  const { currentTeam, isLeader } = useTeam();
+  const { teams, currentTeam, setCurrentTeam, isLeader, refreshTeams } = useTeam();
   const navigate = useNavigate();
 
   // Data states
   const [projects, setProjects] = useState([]);
   const [tasks, setTasks] = useState([]);
+  const [members, setMembers] = useState([]);
   const [users, setUsers] = useState([]);
   const [events, setEvents] = useState([]);
   const [meetings, setMeetings] = useState([]);
   const [articles, setArticles] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  // Protected test state
-  const [testResult, setTestResult] = useState(null);
-  const [testing, setTesting] = useState(false);
-  const [testError, setTestError] = useState(null);
 
   // Modals state
   const [projectModalOpen, setProjectModalOpen] = useState(false);
@@ -74,23 +82,44 @@ export default function DashboardPage() {
   const [taskModalOpen, setTaskModalOpen] = useState(false);
   const [submittingTask, setSubmittingTask] = useState(false);
 
+  const [meetingModalOpen, setMeetingModalOpen] = useState(false);
+  const [submittingMeeting, setSubmittingMeeting] = useState(false);
+
+  const [inviteModalOpen, setInviteModalOpen] = useState(false);
+
   const [detailsTask, setDetailsTask] = useState(null);
 
-  // Announcement modal state for quick dashboard trigger
+  // Announcement modal state
   const [announcementModalOpen, setAnnouncementModalOpen] = useState(false);
   const [announcementTitle, setAnnouncementTitle] = useState('');
   const [announcementMessage, setAnnouncementMessage] = useState('');
   const [submittingAnnouncement, setSubmittingAnnouncement] = useState(false);
   const [announcementError, setAnnouncementError] = useState('');
 
-  // Task Filter state for dashboard
+  // Team Selector dropdown state
+  const [teamDropdownOpen, setTeamDropdownOpen] = useState(false);
+  const dropdownRef = useRef(null);
+
+  // Task Filter state for leader overview
   const [taskSearch, setTaskSearch] = useState('');
   const [taskStatusFilter, setTaskStatusFilter] = useState('all');
   const [taskPriorityFilter, setTaskPriorityFilter] = useState('all');
   const [taskAssigneeFilter, setTaskAssigneeFilter] = useState('all');
 
+  // Close team selector dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setTeamDropdownOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const fetchData = async () => {
     try {
+      setLoading(true);
       const [projRes, tasksRes, eventsRes, meetingsRes, articlesRes, announcementsRes] = await Promise.all([
         projectService.getProjects(),
         taskService.getAllTasks(),
@@ -99,6 +128,7 @@ export default function DashboardPage() {
         knowledgeService.getArticles({ status: 'published' }).catch(() => ({ data: { articles: [] } })),
         announcementService.getAnnouncements().catch(() => ({ data: { announcements: [] } })),
       ]);
+
       setProjects(projRes.data?.projects || []);
       setTasks(tasksRes.data?.tasks || []);
       setEvents(eventsRes.data?.events || []);
@@ -106,13 +136,14 @@ export default function DashboardPage() {
       setArticles(articlesRes.data?.articles || []);
       setAnnouncements(announcementsRes.data?.announcements || []);
 
-      // Load team members if team is selected
+      // Load team members
       if (currentTeam?.id) {
         try {
           const memRes = await teamService.getTeamMembers(currentTeam.id);
-          const members = memRes.data?.members || [];
+          const teamMembers = memRes.data?.members || [];
+          setMembers(teamMembers);
           setUsers(
-            members.map((m) => ({
+            teamMembers.map((m) => ({
               id: m.user_id,
               name: m.name,
               email: m.email,
@@ -138,20 +169,7 @@ export default function DashboardPage() {
     fetchData();
   }, [currentTeam?.id]);
 
-  const handleTestProtectedApi = async () => {
-    setTesting(true);
-    setTestError(null);
-    try {
-      const res = await authService.testProtected();
-      setTestResult(res);
-    } catch (err) {
-      setTestError(err.message || 'Failed to call protected endpoint');
-      setTestResult(null);
-    } finally {
-      setTesting(false);
-    }
-  };
-
+  // Actions
   const handleCreateProject = async (formData) => {
     setSubmittingProject(true);
     try {
@@ -180,6 +198,22 @@ export default function DashboardPage() {
       throw err;
     } finally {
       setSubmittingTask(false);
+    }
+  };
+
+  const handleCreateMeeting = async (formData) => {
+    setSubmittingMeeting(true);
+    try {
+      const res = await meetingService.createMeeting(formData);
+      const created = res.data?.meeting || res.meeting;
+      if (created) {
+        setMeetings((prev) => [created, ...prev]);
+      }
+      setMeetingModalOpen(false);
+    } catch (err) {
+      alert(err.response?.data?.message || err.message || 'Failed to create meeting.');
+    } finally {
+      setSubmittingMeeting(false);
     }
   };
 
@@ -227,12 +261,13 @@ export default function DashboardPage() {
     }
   };
 
+  // Metrics Calculations
   // Leader Metrics
   const totalProjects = projects.length;
   const totalTasks = tasks.length;
+  const totalMembers = members.length;
   const assignedTeamTasks = tasks.filter((t) => t.assigned_to).length;
   const unassignedTeamTasks = totalTasks - assignedTeamTasks;
-  const inProgressTasks = tasks.filter((t) => t.status === 'in_progress').length;
   const completedTasks = tasks.filter((t) => t.status === 'completed').length;
   const overdueTasksList = tasks.filter(
     (t) =>
@@ -245,62 +280,22 @@ export default function DashboardPage() {
 
   // Member Metrics
   const myTasks = tasks.filter((t) => String(t.assigned_to) === String(user?.id));
-  const myTasksCount = myTasks.length;
-  const myCompletedCount = myTasks.filter((t) => t.status === 'completed').length;
-  const myInProgressCount = myTasks.filter((t) => t.status === 'in_progress').length;
-  const myDeadlines = myTasks.filter((t) => t.due_date && t.status !== 'completed');
-  const myDeadlinesCount = myDeadlines.length;
-  const myOverdueCount = myTasks.filter(
-    (t) =>
-      t.due_date &&
-      new Date(t.due_date).getTime() < Date.now() &&
-      t.status !== 'completed'
-  ).length;
-  const myCompletionRate = myTasksCount > 0 ? Math.round((myCompletedCount / myTasksCount) * 100) : 0;
+  const myPendingTasks = myTasks.filter((t) => t.status !== 'completed');
+  const myCompletedTasks = myTasks.filter((t) => t.status === 'completed');
+  const myDeadlinesList = myTasks
+    .filter((t) => t.due_date && t.status !== 'completed')
+    .sort((a, b) => new Date(a.due_date) - new Date(b.due_date));
 
-  // New Feature Metrics
+  // Common Calendar / Meeting Metrics
   const upcomingMeetings = meetings.filter(
     (m) => new Date(m.start_datetime).getTime() >= Date.now() && m.status === 'scheduled'
   );
   const upcomingEvents = events.filter(
     (e) => new Date(e.start_datetime).getTime() >= Date.now()
   );
-  const pendingInvitationsCount = meetings.filter(
-    (m) => m.my_response_status === 'pending'
-  ).length;
   const publishedArticlesCount = articles.length;
 
-  // Combined upcoming schedule items (sorted chronologically)
-  const combinedSchedule = [
-    ...upcomingMeetings.map((m) => ({
-      id: `meeting-${m.id}`,
-      originalId: m.id,
-      title: m.title,
-      type: 'meeting',
-      start: new Date(m.start_datetime),
-      end: new Date(m.end_datetime),
-      location: m.location,
-      badge: 'Meeting',
-      badgeColor: 'bg-purple-50 text-purple-700 border-purple-200',
-      link: `/meetings/${m.id}`,
-      meta: m.organizer_name ? `Hosted by ${m.organizer_name}` : null,
-    })),
-    ...upcomingEvents.map((e) => ({
-      id: `event-${e.id}`,
-      originalId: e.id,
-      title: e.title,
-      type: 'event',
-      start: new Date(e.start_datetime),
-      end: new Date(e.end_datetime),
-      location: e.location,
-      badge: 'Event',
-      badgeColor: 'bg-amber-50 text-amber-700 border-amber-200',
-      link: '/calendar',
-      meta: e.location || 'Calendar Event',
-    })),
-  ].sort((a, b) => a.start - b.start);
-
-  // Filtered Tasks
+  // Filtered Tasks for Leader Overview
   const filteredTasks = tasks.filter((t) => {
     const matchesSearch =
       t.title.toLowerCase().includes(taskSearch.toLowerCase()) ||
@@ -333,229 +328,275 @@ export default function DashboardPage() {
     return matchesSearch && matchesStatus && matchesPriority && matchesAssignee;
   });
 
-  const modules = [
-    {
-      title: 'Projects Management',
-      icon: FolderGit2,
-      color: 'bg-blue-50 text-blue-600',
-      description: 'Owner-scoped workspaces, deliverable tracking, and status boards.',
-      badge: 'Active Module',
-      link: '/projects',
-    },
-    {
-      title: 'Tasks & Deliverables',
-      icon: CheckSquare,
-      color: 'bg-emerald-50 text-emerald-600',
-      description: 'Priorities, deadlines, overdue alerts, and assignee dispatch.',
-      badge: 'Active Module',
-      link: '/tasks',
-    },
-    {
-      title: 'Meetings & Standups',
-      icon: Users,
-      color: 'bg-purple-50 text-purple-600',
-      description: 'Collaborative meeting agendas, minutes, and task action items.',
-      badge: 'Active Module',
-      link: '/meetings',
-    },
-    {
-      title: 'Calendar & Deadlines',
-      icon: Calendar,
-      color: 'bg-amber-50 text-amber-600',
-      description: 'Unified calendar synchronizing deliverables and team schedules.',
-      badge: 'Active Module',
-      link: '/calendar',
-    },
-    {
-      title: 'Knowledge Base',
-      icon: BookOpen,
-      color: 'bg-pink-50 text-pink-600',
-      description: 'Centralized engineering documentation, architecture wikis, and SOPs.',
-      badge: 'Active Module',
-      link: '/knowledge',
-    },
-  ];
+  const getInitials = (name) => {
+    if (!name) return 'U';
+    const parts = name.trim().split(' ');
+    if (parts.length >= 2) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return name.slice(0, 2).toUpperCase();
+  };
 
   return (
-    <div className="min-h-[calc(100vh-4rem)] py-8 px-4 sm:px-6 lg:px-8 bg-slate-50">
-      <div className="max-w-7xl mx-auto space-y-8">
-        {/* Welcome Header */}
+    <div className="min-h-[calc(100vh-4rem)] py-6 sm:py-8 px-4 sm:px-6 lg:px-8 bg-slate-50">
+      <div className="max-w-7xl mx-auto space-y-6 sm:space-y-8">
+        {/* ========================================================================= */}
+        {/* HEADER SECTION (Role-Specific with Team Selector)                        */}
+        {/* ========================================================================= */}
         <div className="rounded-3xl border border-slate-200 bg-white p-6 sm:p-8 shadow-xs">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
-            <div className="space-y-2">
-              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-50 border border-indigo-200 text-indigo-700 text-xs font-semibold">
-                <ShieldCheck className="w-3.5 h-3.5 text-indigo-600" />
-                <span>
-                  {isLeader ? 'Leader View' : 'Member View'} • {currentTeam?.name || 'Active Workspace'}
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-6">
+            <div className="space-y-3">
+              {/* Team Name, Role Badge, and Multi-Team Selector */}
+              <div className="flex flex-wrap items-center gap-2.5">
+                <span className="text-sm font-bold text-slate-900 tracking-tight">
+                  {currentTeam?.name || 'Active Workspace'}
                 </span>
+
+                <span
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold border ${
+                    isLeader
+                      ? 'bg-purple-50 text-purple-700 border-purple-200'
+                      : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                  }`}
+                >
+                  {isLeader ? (
+                    <Crown className="w-3.5 h-3.5 text-purple-600" />
+                  ) : (
+                    <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
+                  )}
+                  <span>Role: {isLeader ? 'Leader' : 'Member'}</span>
+                </span>
+
+                {/* Team Selector: If user belongs to multiple teams */}
+                {teams && teams.length > 1 && (
+                  <div className="relative" ref={dropdownRef}>
+                    <button
+                      type="button"
+                      onClick={() => setTeamDropdownOpen((prev) => !prev)}
+                      className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold border border-slate-200 transition-colors cursor-pointer"
+                      title="Switch active team"
+                    >
+                      <span>Current Team</span>
+                      <ChevronDown
+                        className={`w-3.5 h-3.5 text-slate-500 transition-transform ${
+                          teamDropdownOpen ? 'rotate-180' : ''
+                        }`}
+                      />
+                    </button>
+
+                    {teamDropdownOpen && (
+                      <div className="absolute left-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-slate-200 p-2 z-50 animate-in fade-in duration-150">
+                        <div className="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                          Switch Team
+                        </div>
+                        <div className="space-y-1 mt-1 max-h-56 overflow-y-auto">
+                          {teams.map((t) => (
+                            <button
+                              key={t.id}
+                              type="button"
+                              onClick={() => {
+                                setCurrentTeam(t);
+                                setTeamDropdownOpen(false);
+                              }}
+                              className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-xs text-left transition-all cursor-pointer ${
+                                t.id === currentTeam?.id
+                                  ? 'bg-indigo-50 text-indigo-900 font-bold border border-indigo-200'
+                                  : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900 border border-transparent'
+                              }`}
+                            >
+                              <div className="truncate pr-2">
+                                <span className="block truncate">{t.name}</span>
+                                <span className="text-[10px] text-slate-400 font-normal capitalize">
+                                  {t.user_role}
+                                </span>
+                              </div>
+                              {t.id === currentTeam?.id && (
+                                <Check className="w-4 h-4 text-indigo-600 shrink-0" />
+                              )}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
+
+              {/* Welcome [Name] */}
               <h1 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-slate-900 tracking-tight">
-                Welcome back, {user?.name || 'Workspace Member'}!
+                Welcome, {user?.name || 'Workspace Member'}
               </h1>
+
               <p className="text-xs sm:text-sm text-slate-500 max-w-2xl leading-relaxed">
                 {isLeader ? (
                   <>
-                    Team overview for <strong>{currentTeam?.name || 'your workspace'}</strong>: You have{' '}
-                    <strong>{totalProjects} team projects</strong>, <strong>{totalTasks} total tasks</strong>,{' '}
-                    <strong>{assignedTeamTasks} assigned deliverables</strong>, and overall team progress is at{' '}
-                    <strong>{completionRate}%</strong>.
+                    Full leadership view for <strong>{currentTeam?.name || 'your workspace'}</strong>. Manage team projects, tasks, meetings, member invitations, and broadcasts.
                   </>
                 ) : (
                   <>
-                    Personal workspace summary for <strong>{currentTeam?.name || 'your workspace'}</strong>: You have{' '}
-                    <strong>{myTasksCount} deliverables assigned to you</strong>,{' '}
-                    <strong>{myDeadlinesCount} active deadlines</strong>, and access to{' '}
-                    <strong>{totalProjects} relevant projects</strong>.
+                    Personal workspace dashboard for <strong>{currentTeam?.name || 'your workspace'}</strong>. Track your assigned tasks, active deadlines, upcoming meetings, and announcements.
                   </>
                 )}
               </p>
             </div>
 
-            <div className="flex flex-wrap items-center gap-2.5">
-              {isLeader ? (
-                <>
-                  <button
-                    onClick={() => setProjectModalOpen(true)}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs sm:text-sm font-medium transition-all shadow-xs cursor-pointer"
-                  >
-                    <FolderPlus className="w-4 h-4" />
-                    <span>New Project</span>
-                  </button>
+            {/* Leader Actions: All 6 Buttons (ONLY shown to Leader) */}
+            {isLeader && (
+              <div className="flex flex-wrap items-center gap-2 pt-2 lg:pt-0">
+                {/* [Create Project] */}
+                <button
+                  onClick={() => setProjectModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 active:bg-indigo-800 text-white text-xs sm:text-sm font-semibold transition-all shadow-xs cursor-pointer"
+                >
+                  <FolderPlus className="w-4 h-4" />
+                  <span>Create Project</span>
+                </button>
 
-                  <button
-                    onClick={() => setTaskModalOpen(true)}
-                    disabled={projects.length === 0}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs sm:text-sm font-medium transition-all shadow-xs cursor-pointer disabled:opacity-50"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>New Task</span>
-                  </button>
+                {/* [Create Task] */}
+                <button
+                  onClick={() => setTaskModalOpen(true)}
+                  disabled={projects.length === 0}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white text-xs sm:text-sm font-semibold transition-all shadow-xs cursor-pointer disabled:opacity-50"
+                  title={projects.length === 0 ? 'Create a project first' : 'Create Task'}
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Create Task</span>
+                </button>
 
-                  <button
-                    onClick={() => setAnnouncementModalOpen(true)}
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white text-xs sm:text-sm font-medium transition-all shadow-xs cursor-pointer"
-                  >
-                    <Megaphone className="w-4 h-4" />
-                    <span>Create Announcement</span>
-                  </button>
-                </>
-              ) : (
-                <>
-                  <Link
-                    to="/projects"
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs sm:text-sm font-medium transition-all shadow-xs"
-                  >
-                    <FolderGit2 className="w-4 h-4 text-indigo-600" />
-                    <span>Relevant Projects</span>
-                  </Link>
+                {/* [Create Meeting] */}
+                <button
+                  onClick={() => setMeetingModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white text-xs sm:text-sm font-semibold transition-all shadow-xs cursor-pointer"
+                >
+                  <Video className="w-4 h-4" />
+                  <span>Create Meeting</span>
+                </button>
 
-                  <Link
-                    to="/tasks"
-                    className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs sm:text-sm font-medium transition-all shadow-xs"
-                  >
-                    <CheckSquare className="w-4 h-4" />
-                    <span>My Tasks ({myTasksCount})</span>
-                  </Link>
-                </>
-              )}
-            </div>
+                {/* [Invite Member] */}
+                <button
+                  onClick={() => setInviteModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white text-xs sm:text-sm font-semibold transition-all shadow-xs cursor-pointer"
+                >
+                  <UserPlus className="w-4 h-4" />
+                  <span>Invite Member</span>
+                </button>
+
+                {/* [Manage Team] */}
+                <button
+                  onClick={() => navigate(`/teams/${currentTeam?.id || ''}`)}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs sm:text-sm font-semibold transition-all shadow-xs cursor-pointer"
+                >
+                  <Settings className="w-4 h-4 text-slate-500" />
+                  <span>Manage Team</span>
+                </button>
+
+                {/* [Create Announcement] */}
+                <button
+                  onClick={() => setAnnouncementModalOpen(true)}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 active:bg-amber-800 text-white text-xs sm:text-sm font-semibold transition-all shadow-xs cursor-pointer"
+                >
+                  <Megaphone className="w-4 h-4" />
+                  <span>Create Announcement</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
-        {/* 5 Core Delivery Metric Cards (Dynamic Leader vs Member) */}
+        {/* ========================================================================= */}
+        {/* ROLE-SPECIFIC STATISTICS                                                  */}
+        {/* ========================================================================= */}
         {isLeader ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
-            {/* Card 1: Team Projects */}
-            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs">
+          /* LEADER STATISTICS: 6 Cards (Projects, Tasks, Team Members, Meetings, Calendar Events, KB Articles) */
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+            {/* Stat 1: Projects */}
+            <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-slate-500">Team Projects</span>
+                <span className="text-xs font-semibold text-slate-500">Projects</span>
                 <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
                   <FolderGit2 className="w-4 h-4" />
                 </div>
               </div>
               <div className="flex items-baseline justify-between">
-                <span className="text-2xl sm:text-3xl font-extrabold text-slate-900">{totalProjects}</span>
-                <span className="text-[11px] text-indigo-600 font-medium">Workspace</span>
+                <span className="text-2xl font-extrabold text-slate-900">{totalProjects}</span>
+                <span className="text-[11px] text-indigo-600 font-medium">Team</span>
               </div>
             </div>
 
-            {/* Card 2: Team Tasks */}
-            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs">
+            {/* Stat 2: Tasks */}
+            <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-slate-500">Team Tasks</span>
+                <span className="text-xs font-semibold text-slate-500">Tasks</span>
                 <div className="w-8 h-8 rounded-xl bg-blue-50 text-blue-600 flex items-center justify-center">
                   <CheckSquare className="w-4 h-4" />
                 </div>
               </div>
               <div className="flex items-baseline justify-between">
-                <span className="text-2xl sm:text-3xl font-extrabold text-blue-600">{totalTasks}</span>
-                <span className="text-[11px] text-slate-400 font-medium">Deliverables</span>
+                <span className="text-2xl font-extrabold text-blue-600">{totalTasks}</span>
+                <span className="text-[11px] text-slate-400 font-medium">Total</span>
               </div>
             </div>
 
-            {/* Card 3: Assigned Tasks */}
-            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs">
+            {/* Stat 3: Team Members */}
+            <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-purple-700">Assigned Tasks</span>
+                <span className="text-xs font-semibold text-purple-700">Team Members</span>
                 <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
                   <Users className="w-4 h-4" />
                 </div>
               </div>
               <div className="flex items-baseline justify-between">
-                <span className="text-2xl sm:text-3xl font-extrabold text-purple-600">{assignedTeamTasks}</span>
-                <span className="text-[11px] text-slate-400 font-medium">{unassignedTeamTasks} Unassigned</span>
+                <span className="text-2xl font-extrabold text-purple-600">{totalMembers}</span>
+                <span className="text-[11px] text-purple-600 font-medium">Active</span>
               </div>
             </div>
 
-            {/* Card 4: Team Progress */}
-            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs">
+            {/* Stat 4: Meetings */}
+            <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-emerald-700">Team Progress</span>
+                <span className="text-xs font-semibold text-amber-700">Meetings</span>
+                <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                  <Video className="w-4 h-4" />
+                </div>
+              </div>
+              <div className="flex items-baseline justify-between">
+                <span className="text-2xl font-extrabold text-amber-600">{upcomingMeetings.length}</span>
+                <span className="text-[11px] text-slate-400 font-medium">Scheduled</span>
+              </div>
+            </div>
+
+            {/* Stat 5: Calendar Events */}
+            <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-emerald-700">Calendar Events</span>
                 <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                  <CheckCircle2 className="w-4 h-4" />
+                  <CalendarDays className="w-4 h-4" />
                 </div>
               </div>
               <div className="flex items-baseline justify-between">
-                <span className="text-2xl sm:text-3xl font-extrabold text-emerald-600">{completionRate}%</span>
-                <span className="text-[11px] text-emerald-700 font-medium">{completedTasks}/{totalTasks} Done</span>
+                <span className="text-2xl font-extrabold text-emerald-600">{upcomingEvents.length}</span>
+                <span className="text-[11px] text-emerald-600 font-medium">Upcoming</span>
               </div>
             </div>
 
-            {/* Card 5: Overdue Alerts */}
-            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs col-span-2 sm:col-span-1">
+            {/* Stat 6: KB Articles */}
+            <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-rose-700">Overdue Tasks</span>
-                <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${overdueCount > 0 ? 'bg-rose-50 text-rose-600' : 'bg-slate-100 text-slate-400'}`}>
-                  <AlertTriangle className={`w-4 h-4 ${overdueCount > 0 ? 'animate-bounce' : ''}`} />
+                <span className="text-xs font-semibold text-pink-700">KB Articles</span>
+                <div className="w-8 h-8 rounded-xl bg-pink-50 text-pink-600 flex items-center justify-center">
+                  <BookOpen className="w-4 h-4" />
                 </div>
               </div>
               <div className="flex items-baseline justify-between">
-                <span className={`text-2xl sm:text-3xl font-extrabold ${overdueCount > 0 ? 'text-rose-600' : 'text-slate-900'}`}>
-                  {overdueCount}
-                </span>
-                <span className={`text-[11px] font-semibold ${overdueCount > 0 ? 'text-rose-600' : 'text-slate-400'}`}>
-                  {overdueCount > 0 ? 'Attention Needed' : 'On Track'}
-                </span>
+                <span className="text-2xl font-extrabold text-pink-600">{publishedArticlesCount}</span>
+                <span className="text-[11px] text-slate-400 font-medium">Published</span>
               </div>
             </div>
           </div>
         ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
-            {/* Card 1: Relevant Projects */}
-            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-slate-500">Relevant Projects</span>
-                <div className="w-8 h-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
-                  <FolderGit2 className="w-4 h-4" />
-                </div>
-              </div>
-              <div className="flex items-baseline justify-between">
-                <span className="text-2xl sm:text-3xl font-extrabold text-slate-900">{totalProjects}</span>
-                <span className="text-[11px] text-indigo-600 font-medium">Accessible</span>
-              </div>
-            </div>
-
-            {/* Card 2: My Tasks */}
+          /* MEMBER STATISTICS: 4 Cards (My Tasks, Pending Tasks, Upcoming Meetings, Upcoming Events) */
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
+            {/* Stat 1: My Tasks */}
             <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs">
               <div className="flex items-center justify-between mb-2">
                 <span className="text-xs font-semibold text-slate-500">My Tasks</span>
@@ -564,748 +605,1191 @@ export default function DashboardPage() {
                 </div>
               </div>
               <div className="flex items-baseline justify-between">
-                <span className="text-2xl sm:text-3xl font-extrabold text-blue-600">{myTasksCount}</span>
-                <span className="text-[11px] text-slate-400 font-medium">{myInProgressCount} Active</span>
+                <span className="text-2xl sm:text-3xl font-extrabold text-blue-600">{myTasks.length}</span>
+                <span className="text-[11px] text-slate-400 font-medium">Assigned</span>
               </div>
             </div>
 
-            {/* Card 3: My Deadlines */}
+            {/* Stat 2: Pending Tasks */}
             <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-amber-700">My Deadlines</span>
+                <span className="text-xs font-semibold text-amber-700">Pending Tasks</span>
                 <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
                   <Clock className="w-4 h-4" />
                 </div>
               </div>
               <div className="flex items-baseline justify-between">
-                <span className="text-2xl sm:text-3xl font-extrabold text-amber-600">{myDeadlinesCount}</span>
-                <span className="text-[11px] text-amber-700 font-medium">Pending Due</span>
+                <span className="text-2xl sm:text-3xl font-extrabold text-amber-600">{myPendingTasks.length}</span>
+                <span className="text-[11px] text-amber-700 font-medium">Incomplete</span>
               </div>
             </div>
 
-            {/* Card 4: My Progress */}
+            {/* Stat 3: Upcoming Meetings */}
             <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-emerald-700">My Completed</span>
-                <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                  <CheckCircle2 className="w-4 h-4" />
+                <span className="text-xs font-semibold text-purple-700">Upcoming Meetings</span>
+                <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+                  <Video className="w-4 h-4" />
                 </div>
               </div>
               <div className="flex items-baseline justify-between">
-                <span className="text-2xl sm:text-3xl font-extrabold text-emerald-600">{myCompletedCount}</span>
-                <span className="text-[11px] text-emerald-700 font-medium">{myCompletionRate}% Done</span>
+                <span className="text-2xl sm:text-3xl font-extrabold text-purple-600">{upcomingMeetings.length}</span>
+                <span className="text-[11px] text-purple-600 font-medium">Scheduled</span>
               </div>
             </div>
 
-            {/* Card 5: My Overdue Alert */}
-            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs col-span-2 sm:col-span-1">
+            {/* Stat 4: Upcoming Events */}
+            <div className="bg-white rounded-2xl p-4 sm:p-5 border border-slate-200 shadow-xs">
               <div className="flex items-center justify-between mb-2">
-                <span className="text-xs font-semibold text-rose-700">My Overdue</span>
-                <div className={`w-8 h-8 rounded-xl flex items-center justify-center ${myOverdueCount > 0 ? 'bg-rose-50 text-rose-600' : 'bg-slate-100 text-slate-400'}`}>
-                  <AlertTriangle className={`w-4 h-4 ${myOverdueCount > 0 ? 'animate-bounce' : ''}`} />
+                <span className="text-xs font-semibold text-emerald-700">Upcoming Events</span>
+                <div className="w-8 h-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                  <CalendarDays className="w-4 h-4" />
                 </div>
               </div>
               <div className="flex items-baseline justify-between">
-                <span className={`text-2xl sm:text-3xl font-extrabold ${myOverdueCount > 0 ? 'text-rose-600' : 'text-slate-900'}`}>
-                  {myOverdueCount}
-                </span>
-                <span className={`text-[11px] font-semibold ${myOverdueCount > 0 ? 'text-rose-600' : 'text-slate-400'}`}>
-                  {myOverdueCount > 0 ? 'Action Needed' : 'On Track'}
-                </span>
+                <span className="text-2xl sm:text-3xl font-extrabold text-emerald-600">{upcomingEvents.length}</span>
+                <span className="text-[11px] text-emerald-600 font-medium">Calendar</span>
               </div>
             </div>
           </div>
         )}
 
-        {/* 4 Collaborative KPI Cards: Meetings, Events, KB, Invitations */}
-        <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-          <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center shrink-0">
-              <Users className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="text-[11px] text-slate-500 font-semibold block">Upcoming Meetings</span>
-              <span className="text-xl font-bold text-slate-900">{upcomingMeetings.length}</span>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-              <CalendarDays className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="text-[11px] text-slate-500 font-semibold block">Scheduled Events</span>
-              <span className="text-xl font-bold text-slate-900">{upcomingEvents.length}</span>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-pink-50 text-pink-600 flex items-center justify-center shrink-0">
-              <BookOpen className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="text-[11px] text-slate-500 font-semibold block">Published Articles</span>
-              <span className="text-xl font-bold text-slate-900">{publishedArticlesCount}</span>
-            </div>
-          </div>
-
-          <div className="bg-white rounded-2xl p-4 border border-slate-200 shadow-xs flex items-center gap-3">
-            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${
-              pendingInvitationsCount > 0 ? 'bg-indigo-50 text-indigo-600 animate-pulse' : 'bg-slate-100 text-slate-400'
-            }`}>
-              <Bell className="w-5 h-5" />
-            </div>
-            <div>
-              <span className="text-[11px] text-slate-500 font-semibold block">Pending Invitations</span>
-              <span className={`text-xl font-bold ${pendingInvitationsCount > 0 ? 'text-indigo-600' : 'text-slate-900'}`}>
-                {pendingInvitationsCount}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Team Announcements Feed */}
-        <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs space-y-4">
-          <div className="flex items-center justify-between pb-3 border-b border-slate-100">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
-                <Megaphone className="w-5 h-5" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h3 className="text-base font-bold text-slate-900">Team Announcements</h3>
-                  {announcements.length > 0 && (
-                    <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-amber-50 text-amber-700 border border-amber-200">
-                      {announcements.length}
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-slate-500">
-                  Official updates, notices, and broadcasts from leadership
-                </p>
-              </div>
-            </div>
-
-            <div className="flex items-center gap-2.5">
-              {isLeader && (
-                <button
-                  onClick={() => setAnnouncementModalOpen(true)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 text-xs font-semibold transition-colors cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Post</span>
-                </button>
-              )}
-              <Link
-                to="/announcements"
-                className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700"
-              >
-                <span>View all</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
-            </div>
-          </div>
-
-          {announcements.length === 0 ? (
-            <div className="py-8 text-center bg-slate-50/60 rounded-2xl border border-dashed border-slate-200">
-              <Megaphone className="w-8 h-8 text-slate-300 mx-auto mb-2" />
-              <p className="text-xs font-medium text-slate-600">No announcements posted yet</p>
-              <p className="text-[11px] text-slate-400 mt-0.5">
-                {isLeader
-                  ? 'Share important updates, releases, or guidelines with your workspace.'
-                  : 'Check back later for announcements and team updates.'}
-              </p>
-              {isLeader && (
-                <button
-                  onClick={() => setAnnouncementModalOpen(true)}
-                  className="mt-3 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-medium transition-colors cursor-pointer"
-                >
-                  <Plus className="w-3.5 h-3.5" />
-                  <span>Create Announcement</span>
-                </button>
-              )}
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {announcements.slice(0, 3).map((item) => (
-                <div
-                  key={item.id}
-                  className="p-4 rounded-2xl bg-gradient-to-br from-amber-50/40 via-white to-slate-50 border border-amber-100 hover:border-amber-200 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between"
-                >
-                  <div className="space-y-2">
-                    <div className="flex items-start justify-between gap-2">
-                      <h4 className="text-sm font-bold text-slate-900 line-clamp-1">
-                        {item.title}
-                      </h4>
-                      <span className="shrink-0 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-amber-100 text-amber-800">
-                        Update
-                      </span>
-                    </div>
-                    <p className="text-xs text-slate-600 line-clamp-3 leading-relaxed">
-                      {item.message}
-                    </p>
-                  </div>
-                  <div className="pt-3 mt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
-                    <span className="font-medium truncate max-w-[130px]">
-                      👤 {item.created_by_name || 'Leader'}
-                    </span>
-                    <span>
-                      {new Date(item.created_at).toLocaleDateString(undefined, {
-                        month: 'short',
-                        day: 'numeric',
-                      })}
-                    </span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* Dedicated Overdue Tasks Section */}
-        {overdueCount > 0 && (
-          <div className="bg-rose-50/40 rounded-3xl p-6 border border-rose-200 space-y-4 shadow-2xs">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-rose-100 text-rose-600 flex items-center justify-center shrink-0">
-                  <AlertTriangle className="w-5 h-5" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                    <span>Overdue Deliverables Requiring Attention</span>
-                    <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-rose-100 text-rose-700 border border-rose-200">
-                      {overdueCount}
-                    </span>
-                  </h3>
-                  <p className="text-xs text-slate-600">
-                    These tasks have passed their target deadline. Resolve or update their progress.
-                  </p>
-                </div>
-              </div>
-
-              <Link
-                to="/tasks"
-                className="hidden sm:inline-flex items-center gap-1 text-xs font-semibold text-rose-700 hover:text-rose-800"
-              >
-                <span>View all tasks</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 pt-1">
-              {overdueTasksList.slice(0, 3).map((t) => (
-                <div
-                  key={t.id}
-                  className="p-4 rounded-2xl bg-white border border-rose-200 space-y-2 hover:border-rose-300 shadow-xs transition-colors"
-                >
-                  <div className="flex items-center justify-between text-xs">
-                    <PriorityBadge priority={t.priority} />
-                    <span className="font-semibold text-rose-600 text-[11px]">
-                      Due {new Date(t.due_date).toLocaleDateString()}
-                    </span>
-                  </div>
-
-                  <h4
-                    onClick={() => setDetailsTask(t)}
-                    className="text-sm font-bold text-slate-900 hover:text-indigo-600 transition-colors cursor-pointer truncate"
-                  >
-                    {t.title}
-                  </h4>
-
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-                    <span className="truncate max-w-[120px]">
-                      {t.assignee_name ? `👤 ${t.assignee_name}` : '⚪ Unassigned'}
-                    </span>
-                    <button
-                      onClick={() => handleQuickStatusChange(t, 'completed')}
-                      className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[11px] font-medium transition-colors cursor-pointer"
-                    >
-                      Mark Done
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* 2-Column Section: Upcoming Schedule (Meetings & Events) & Recent Knowledge Base */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Upcoming Schedule Widget */}
-          <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs space-y-4 flex flex-col justify-between">
+        {/* ========================================================================= */}
+        {/* LEADER DASHBOARD SECTIONS (7 SECTIONS)                                    */}
+        {/* ========================================================================= */}
+        {isLeader ? (
+          <div className="space-y-8">
+            {/* Section 1: Recent Projects */}
             <div className="space-y-4">
-              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
-                    <Calendar className="w-4 h-4" />
+                  <div className="w-7 h-7 rounded-lg bg-indigo-50 text-indigo-600 flex items-center justify-center">
+                    <FolderGit2 className="w-4 h-4" />
                   </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-slate-900">Upcoming Schedule</h3>
-                    <p className="text-[11px] text-slate-500">Scheduled meetings and calendar events</p>
+                  <h3 className="text-base sm:text-lg font-bold text-slate-900">Recent Projects</h3>
+                  <span className="text-xs font-semibold text-slate-400">({projects.length})</span>
+                </div>
+                <Link
+                  to="/projects"
+                  className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 transition-colors"
+                >
+                  <span>View all projects</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+
+              {projects.length === 0 ? (
+                <div className="bg-white rounded-3xl p-8 text-center border border-slate-200 space-y-2 shadow-xs">
+                  <FolderGit2 className="w-8 h-8 text-slate-400 mx-auto" />
+                  <h4 className="text-sm font-bold text-slate-900">No Projects Yet</h4>
+                  <p className="text-xs text-slate-500 max-w-xs mx-auto">
+                    Create a project to start organizing team deliverables and tracking sprints.
+                  </p>
+                  <button
+                    onClick={() => setProjectModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-indigo-600 text-white text-xs font-medium cursor-pointer shadow-xs"
+                  >
+                    <FolderPlus className="w-4 h-4" />
+                    <span>Create Project</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {projects.slice(0, 3).map((p) => {
+                    const projectTasks = tasks.filter((t) => t.project_id === p.id);
+                    const pDone = projectTasks.filter((t) => t.status === 'completed').length;
+                    const pPercent = projectTasks.length > 0 ? Math.round((pDone / projectTasks.length) * 100) : 0;
+
+                    return (
+                      <Link
+                        key={p.id}
+                        to={`/projects/${p.id}`}
+                        className="bg-white rounded-3xl p-5 border border-slate-200 shadow-xs hover:border-indigo-300 hover:shadow-md flex flex-col justify-between group transition-all"
+                      >
+                        <div>
+                          <div className="flex items-center justify-between gap-2 mb-2">
+                            <StatusPill status={p.status} />
+                            <span className="text-[10px] text-slate-400 font-medium">
+                              {projectTasks.length} {projectTasks.length === 1 ? 'task' : 'tasks'}
+                            </span>
+                          </div>
+
+                          <h4 className="text-base font-bold text-slate-900 group-hover:text-indigo-600 transition-colors line-clamp-1 mb-1">
+                            {p.name}
+                          </h4>
+
+                          <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed mb-4">
+                            {p.description || 'No description provided.'}
+                          </p>
+                        </div>
+
+                        <div className="space-y-2 pt-3 border-t border-slate-100">
+                          <div className="flex items-center justify-between text-xs text-slate-500">
+                            <span>Deliverables Progress</span>
+                            <span className="font-semibold text-slate-700">{pPercent}% Done</span>
+                          </div>
+                          <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
+                            <div
+                              className="h-full bg-indigo-600 rounded-full transition-all duration-500"
+                              style={{ width: `${pPercent}%` }}
+                            />
+                          </div>
+                        </div>
+                      </Link>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Section 2: Task Overview */}
+            <div className="space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                    <CheckSquare className="w-4 h-4" />
                   </div>
+                  <h3 className="text-base sm:text-lg font-bold text-slate-900">Task Overview</h3>
+                  <span className="text-xs font-semibold text-slate-400">({tasks.length} total)</span>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-slate-500 font-medium">
+                    Team Completion: <strong className="text-slate-800">{completionRate}%</strong>
+                  </span>
                   <Link
-                    to="/calendar"
-                    className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
+                    to="/tasks"
+                    className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 transition-colors"
                   >
-                    <span>Calendar</span>
-                    <ArrowRight className="w-3 h-3" />
+                    <span>View all tasks</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
                   </Link>
                 </div>
               </div>
 
-              {combinedSchedule.length === 0 ? (
-                <div className="py-8 text-center text-xs text-slate-400">
-                  No upcoming meetings or events scheduled.
+              {/* Overdue callout if any */}
+              {overdueCount > 0 && (
+                <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 flex items-center justify-between text-xs text-rose-700">
+                  <div className="flex items-center gap-2">
+                    <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                    <span>
+                      <strong>{overdueCount} {overdueCount === 1 ? 'task is' : 'tasks are'} overdue</strong> past target deadline.
+                    </span>
+                  </div>
+                  <button
+                    onClick={() => setTaskStatusFilter('overdue')}
+                    className="px-2.5 py-1 rounded-lg bg-white text-rose-700 font-semibold border border-rose-200 hover:bg-rose-100 transition-colors cursor-pointer"
+                  >
+                    Filter Overdue
+                  </button>
+                </div>
+              )}
+
+              {/* Task Filter Toolbar */}
+              <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 p-3 bg-white rounded-2xl border border-slate-200 shadow-xs">
+                <div className="relative flex-1 max-w-sm">
+                  <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
+                  <input
+                    type="text"
+                    value={taskSearch}
+                    onChange={(e) => setTaskSearch(e.target.value)}
+                    placeholder="Search recent tasks..."
+                    className="w-full pl-9 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  />
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <select
+                    value={taskStatusFilter}
+                    onChange={(e) => setTaskStatusFilter(e.target.value)}
+                    className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:border-indigo-500"
+                  >
+                    <option value="all">All Statuses</option>
+                    <option value="todo">To Do</option>
+                    <option value="in_progress">In Progress</option>
+                    <option value="completed">Completed</option>
+                    <option value="overdue">Overdue Only</option>
+                  </select>
+
+                  <select
+                    value={taskPriorityFilter}
+                    onChange={(e) => setTaskPriorityFilter(e.target.value)}
+                    className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:border-indigo-500"
+                  >
+                    <option value="all">All Priorities</option>
+                    <option value="urgent">Urgent</option>
+                    <option value="high">High</option>
+                    <option value="medium">Medium</option>
+                    <option value="low">Low</option>
+                  </select>
+
+                  {users.length > 0 && (
+                    <select
+                      value={taskAssigneeFilter}
+                      onChange={(e) => setTaskAssigneeFilter(e.target.value)}
+                      className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:border-indigo-500"
+                    >
+                      <option value="all">All Assignees</option>
+                      <option value="unassigned">Unassigned</option>
+                      {users.map((u) => (
+                        <option key={u.id} value={u.id}>
+                          👤 {u.name}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                </div>
+              </div>
+
+              {/* Tasks List */}
+              {filteredTasks.length === 0 ? (
+                <div className="bg-white rounded-2xl p-6 text-center border border-slate-200 text-xs text-slate-500 shadow-xs">
+                  No tasks found matching your filters.
                 </div>
               ) : (
                 <div className="space-y-2.5">
-                  {combinedSchedule.slice(0, 4).map((item) => (
-                    <Link
-                      key={item.id}
-                      to={item.link}
-                      className="p-3 rounded-2xl bg-slate-50 border border-slate-200/80 hover:border-indigo-300 hover:bg-white transition-all flex items-center justify-between gap-3 group"
-                    >
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className={`px-2 py-0.5 rounded-md text-[10px] font-semibold border ${item.badgeColor}`}>
-                            {item.badge}
-                          </span>
-                          <span className="text-xs font-semibold text-slate-900 group-hover:text-indigo-600 transition-colors truncate">
-                            {item.title}
-                          </span>
+                  {filteredTasks.slice(0, 5).map((task) => {
+                    const isOverdue =
+                      task.due_date &&
+                      new Date(task.due_date).getTime() < Date.now() &&
+                      task.status !== 'completed';
+
+                    return (
+                      <div
+                        key={task.id}
+                        className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200 hover:border-slate-300 shadow-xs transition-all flex items-center justify-between gap-4 group"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <button
+                            onClick={() => {
+                              const next =
+                                task.status === 'todo'
+                                  ? 'in_progress'
+                                  : task.status === 'in_progress'
+                                  ? 'completed'
+                                  : 'todo';
+                              handleQuickStatusChange(task, next);
+                            }}
+                            title="Advance status"
+                            className="text-slate-400 hover:text-indigo-600 transition-colors cursor-pointer shrink-0"
+                          >
+                            {task.status === 'completed' ? (
+                              <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                            ) : (
+                              <Circle className="w-5 h-5" />
+                            )}
+                          </button>
+
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                              <span
+                                onClick={() => setDetailsTask(task)}
+                                className={`text-sm font-semibold hover:text-indigo-600 transition-colors cursor-pointer truncate ${
+                                  task.status === 'completed' ? 'line-through text-slate-400' : 'text-slate-900'
+                                }`}
+                              >
+                                {task.title}
+                              </span>
+                              <TaskStatusPill status={task.status} />
+                              <PriorityBadge priority={task.priority} />
+                              {isOverdue && (
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                                  Overdue
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-2 text-xs text-slate-400">
+                              {task.project_name && <span>{task.project_name}</span>}
+                              {task.assignee_name && (
+                                <>
+                                  <span>•</span>
+                                  <span>👤 {task.assignee_name}</span>
+                                </>
+                              )}
+                              {task.due_date && (
+                                <>
+                                  <span>•</span>
+                                  <span className={isOverdue ? 'text-rose-600 font-medium' : ''}>
+                                    Due {new Date(task.due_date).toLocaleDateString()}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2 text-[11px] text-slate-500">
-                          <Clock3 className="w-3 h-3 text-slate-400 shrink-0" />
-                          <span>
-                            {item.start.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} at{' '}
-                            {item.start.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-                          </span>
-                          {item.meta && (
-                            <>
-                              <span>•</span>
-                              <span className="truncate">{item.meta}</span>
-                            </>
-                          )}
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            onClick={() => setDetailsTask(task)}
+                            title="View Discussion & Details"
+                            className="p-2 rounded-xl text-slate-500 hover:text-indigo-600 hover:bg-slate-50 transition-colors cursor-pointer text-xs flex items-center gap-1 border border-slate-200"
+                          >
+                            <MessageSquare className="w-4 h-4" />
+                            <span className="hidden sm:inline">Discussion</span>
+                          </button>
                         </div>
                       </div>
-                      <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-indigo-600 group-hover:translate-x-0.5 transition-all shrink-0" />
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Section 3 & 4: Upcoming Meetings & Upcoming Calendar Events (2-Column) */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Section 3: Upcoming Meetings */}
+              <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs space-y-4 flex flex-col justify-between">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+                        <Video className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-900">Upcoming Meetings</h3>
+                        <p className="text-[11px] text-slate-500">Scheduled team discussions and standups</p>
+                      </div>
+                    </div>
+
+                    <Link
+                      to="/meetings"
+                      className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
+                    >
+                      <span>Manage</span>
+                      <ArrowRight className="w-3 h-3" />
                     </Link>
+                  </div>
+
+                  {upcomingMeetings.length === 0 ? (
+                    <div className="py-8 text-center text-xs text-slate-400">
+                      No upcoming meetings scheduled.
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5">
+                      {upcomingMeetings.slice(0, 3).map((m) => (
+                        <Link
+                          key={m.id}
+                          to={`/meetings/${m.id}`}
+                          className="p-3 rounded-2xl bg-slate-50 border border-slate-200/80 hover:border-purple-300 hover:bg-white transition-all flex items-center justify-between gap-3 group"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+                                Meeting
+                              </span>
+                              <span className="text-xs font-semibold text-slate-900 group-hover:text-purple-600 transition-colors truncate">
+                                {m.title}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                              <Clock3 className="w-3 h-3 text-slate-400 shrink-0" />
+                              <span>
+                                {new Date(m.start_datetime).toLocaleDateString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                })}{' '}
+                                at{' '}
+                                {new Date(m.start_datetime).toLocaleTimeString('en-US', {
+                                  hour: 'numeric',
+                                  minute: '2-digit',
+                                })}
+                              </span>
+                              {m.location && (
+                                <>
+                                  <span>•</span>
+                                  <span className="truncate">{m.location}</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-purple-600 transition-all shrink-0" />
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                  <span>{upcomingMeetings.length} upcoming meetings</span>
+                  <button
+                    onClick={() => setMeetingModalOpen(true)}
+                    className="text-xs font-semibold text-purple-600 hover:text-purple-700 cursor-pointer"
+                  >
+                    + Schedule Meeting
+                  </button>
+                </div>
+              </div>
+
+              {/* Section 4: Upcoming Calendar Events */}
+              <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs space-y-4 flex flex-col justify-between">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                        <CalendarDays className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-900">Upcoming Calendar Events</h3>
+                        <p className="text-[11px] text-slate-500">Milestones, deadlines, and team activities</p>
+                      </div>
+                    </div>
+
+                    <Link
+                      to="/calendar"
+                      className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
+                    >
+                      <span>Calendar</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </Link>
+                  </div>
+
+                  {upcomingEvents.length === 0 ? (
+                    <div className="py-8 text-center text-xs text-slate-400">
+                      No upcoming calendar events scheduled.
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5">
+                      {upcomingEvents.slice(0, 3).map((e) => (
+                        <Link
+                          key={e.id}
+                          to="/calendar"
+                          className="p-3 rounded-2xl bg-slate-50 border border-slate-200/80 hover:border-amber-300 hover:bg-white transition-all flex items-center justify-between gap-3 group"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                                Event
+                              </span>
+                              <span className="text-xs font-semibold text-slate-900 group-hover:text-amber-600 transition-colors truncate">
+                                {e.title}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                              <Clock3 className="w-3 h-3 text-slate-400 shrink-0" />
+                              <span>
+                                {new Date(e.start_datetime).toLocaleDateString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                })}{' '}
+                                at{' '}
+                                {new Date(e.start_datetime).toLocaleTimeString('en-US', {
+                                  hour: 'numeric',
+                                  minute: '2-digit',
+                                })}
+                              </span>
+                              {e.location && (
+                                <>
+                                  <span>•</span>
+                                  <span className="truncate">{e.location}</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-amber-600 transition-all shrink-0" />
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                  <span>{upcomingEvents.length} scheduled events</span>
+                  <Link to="/calendar" className="text-xs font-semibold text-amber-600 hover:text-amber-700">
+                    Open Calendar View
+                  </Link>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 5: Team Members */}
+            <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+                    <Users className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">Team Members</h3>
+                    <p className="text-xs text-slate-500">Collaborators enrolled in {currentTeam?.name}</p>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setInviteModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 border border-purple-200 text-xs font-semibold transition-colors cursor-pointer"
+                  >
+                    <UserPlus className="w-3.5 h-3.5" />
+                    <span>Invite</span>
+                  </button>
+                  <button
+                    onClick={() => navigate(`/teams/${currentTeam?.id || ''}`)}
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700 cursor-pointer"
+                  >
+                    <span>Manage</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+
+              {members.length === 0 ? (
+                <div className="py-6 text-center text-xs text-slate-400">
+                  No members found in this team.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                  {members.map((m) => (
+                    <div
+                      key={m.user_id}
+                      className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200/80 flex items-center justify-between gap-3 hover:bg-white hover:border-slate-300 transition-all"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0">
+                        <div className="w-9 h-9 rounded-full bg-indigo-600 text-white text-xs font-bold flex items-center justify-center shrink-0 shadow-2xs">
+                          {getInitials(m.name)}
+                        </div>
+                        <div className="min-w-0 truncate">
+                          <span className="block text-xs font-bold text-slate-900 truncate">
+                            {m.name}
+                          </span>
+                          <span className="block text-[11px] text-slate-500 truncate">
+                            {m.email}
+                          </span>
+                        </div>
+                      </div>
+
+                      <span
+                        className={`shrink-0 px-2 py-0.5 rounded-md text-[10px] font-bold border capitalize ${
+                          m.role === 'leader'
+                            ? 'bg-purple-50 text-purple-700 border-purple-200'
+                            : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        }`}
+                      >
+                        {m.role}
+                      </span>
+                    </div>
                   ))}
                 </div>
               )}
             </div>
 
-            <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-              <span>{upcomingMeetings.length} meetings, {upcomingEvents.length} events</span>
-              <Link to="/meetings" className="text-indigo-600 hover:text-indigo-700 font-medium">
-                Manage Meetings
-              </Link>
-            </div>
-          </div>
-
-          {/* Recent Knowledge Articles Widget */}
-          <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs space-y-4 flex flex-col justify-between">
-            <div className="space-y-4">
+            {/* Section 6: Announcements */}
+            <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs space-y-4">
               <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                    <Megaphone className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">Announcements</h3>
+                    <p className="text-xs text-slate-500">Official leadership broadcasts for {currentTeam?.name}</p>
+                  </div>
+                </div>
+
                 <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setAnnouncementModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 text-xs font-semibold transition-colors cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Post</span>
+                  </button>
+                  <Link
+                    to="/announcements"
+                    className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700"
+                  >
+                    <span>View all</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </Link>
+                </div>
+              </div>
+
+              {announcements.length === 0 ? (
+                <div className="py-8 text-center bg-slate-50/60 rounded-2xl border border-dashed border-slate-200">
+                  <Megaphone className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                  <p className="text-xs font-medium text-slate-600">No announcements posted yet</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Share important updates, releases, or guidelines with your workspace.
+                  </p>
+                  <button
+                    onClick={() => setAnnouncementModalOpen(true)}
+                    className="mt-3 inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-medium transition-colors cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Create Announcement</span>
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {announcements.slice(0, 3).map((item) => (
+                    <div
+                      key={item.id}
+                      className="p-4 rounded-2xl bg-gradient-to-br from-amber-50/30 via-white to-slate-50 border border-amber-100 hover:border-amber-200 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between"
+                    >
+                      <div className="space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <h4 className="text-sm font-bold text-slate-900 line-clamp-1">
+                            {item.title}
+                          </h4>
+                          <span className="shrink-0 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-amber-100 text-amber-800">
+                            Broadcast
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600 line-clamp-3 leading-relaxed">
+                          {item.message}
+                        </p>
+                      </div>
+                      <div className="pt-3 mt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+                        <span className="font-medium truncate max-w-[130px]">
+                          👤 {item.created_by_name || 'Leader'}
+                        </span>
+                        <span>
+                          {new Date(item.created_at).toLocaleDateString(undefined, {
+                            month: 'short',
+                            day: 'numeric',
+                          })}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Section 7: Knowledge Base */}
+            <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-xl bg-pink-50 text-pink-600 flex items-center justify-center">
                     <BookOpen className="w-4 h-4" />
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-slate-900">Knowledge & Documentation</h3>
-                    <p className="text-[11px] text-slate-500">Latest published engineering guides and SOPs</p>
+                    <h3 className="text-base font-bold text-slate-900">Knowledge Base</h3>
+                    <p className="text-xs text-slate-500">Centralized engineering documentation, architecture wikis, and SOPs</p>
                   </div>
                 </div>
 
                 <Link
                   to="/knowledge"
-                  className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
+                  className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 transition-colors"
                 >
-                  <span>Explore All</span>
-                  <ArrowRight className="w-3 h-3" />
+                  <span>Open KB</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
                 </Link>
               </div>
 
               {articles.length === 0 ? (
                 <div className="py-8 text-center text-xs text-slate-400">
-                  No published documentation articles yet.
+                  No published knowledge articles yet in this workspace.
                 </div>
               ) : (
-                <div className="space-y-2.5">
-                  {articles.slice(0, 4).map((art) => (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {articles.slice(0, 3).map((art) => (
                     <Link
                       key={art.id}
                       to={`/knowledge/${art.id}`}
-                      className="p-3 rounded-2xl bg-slate-50 border border-slate-200/80 hover:border-indigo-300 hover:bg-white transition-all flex items-center justify-between gap-3 group"
+                      className="p-4 rounded-2xl bg-white border border-slate-200 hover:border-pink-300 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between group"
                     >
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-pink-50 text-pink-700 border border-pink-200">
                             {art.category_name || 'General'}
                           </span>
-                          <span className="text-xs font-semibold text-slate-900 group-hover:text-indigo-600 transition-colors truncate">
-                            {art.title}
+                          <span className="text-[10px] text-slate-400">
+                            {new Date(art.updated_at || art.created_at).toLocaleDateString()}
                           </span>
                         </div>
-                        <p className="text-[11px] text-slate-500 line-clamp-1">
+                        <h4 className="text-sm font-bold text-slate-900 group-hover:text-pink-600 transition-colors line-clamp-1">
+                          {art.title}
+                        </h4>
+                        <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
                           {art.content}
                         </p>
                       </div>
-                      <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-indigo-600 group-hover:translate-x-0.5 transition-all shrink-0" />
+                      <div className="pt-3 mt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                        <span className="truncate">👤 {art.author_name || 'Team Member'}</span>
+                        <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-pink-600 transition-all" />
+                      </div>
                     </Link>
                   ))}
                 </div>
               )}
             </div>
-
-            <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
-              <span>{publishedArticlesCount} published guides</span>
-              <Link to="/knowledge" className="text-indigo-600 hover:text-indigo-700 font-medium">
-                Open Knowledge Base
-              </Link>
-            </div>
           </div>
-        </div>
+        ) : (
+          /* ========================================================================= */
+          /* MEMBER DASHBOARD SECTIONS (6 SECTIONS)                                    */
+          /* ========================================================================= */
+          <div className="space-y-8">
+            {/* Section 1: My Tasks */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-blue-50 text-blue-600 flex items-center justify-center">
+                    <CheckSquare className="w-4 h-4" />
+                  </div>
+                  <h3 className="text-base sm:text-lg font-bold text-slate-900">My Tasks</h3>
+                  <span className="text-xs font-semibold text-slate-400">({myTasks.length})</span>
+                </div>
+                <Link
+                  to="/tasks"
+                  className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 transition-colors"
+                >
+                  <span>Open Tasks Board</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
 
-        {/* Project Cards Section */}
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <FolderGit2 className="w-5 h-5 text-indigo-600" />
-              <h3 className="text-lg font-bold text-slate-900">Your Projects</h3>
-              <span className="text-xs text-slate-400">({totalProjects})</span>
+              {myTasks.length === 0 ? (
+                <div className="bg-white rounded-3xl p-8 text-center border border-slate-200 space-y-2 shadow-xs">
+                  <CheckCircle2 className="w-8 h-8 text-slate-400 mx-auto" />
+                  <h4 className="text-sm font-bold text-slate-900">All Caught Up!</h4>
+                  <p className="text-xs text-slate-500 max-w-xs mx-auto">
+                    You currently have no tasks assigned to you in this team workspace.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {myTasks.slice(0, 5).map((task) => {
+                    const isOverdue =
+                      task.due_date &&
+                      new Date(task.due_date).getTime() < Date.now() &&
+                      task.status !== 'completed';
+
+                    return (
+                      <div
+                        key={task.id}
+                        className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200 hover:border-slate-300 shadow-xs transition-all flex items-center justify-between gap-4 group"
+                      >
+                        <div className="flex items-center gap-3 min-w-0">
+                          <button
+                            onClick={() => {
+                              const next =
+                                task.status === 'todo'
+                                  ? 'in_progress'
+                                  : task.status === 'in_progress'
+                                  ? 'completed'
+                                  : 'todo';
+                              handleQuickStatusChange(task, next);
+                            }}
+                            title="Advance my status"
+                            className="text-slate-400 hover:text-indigo-600 transition-colors cursor-pointer shrink-0"
+                          >
+                            {task.status === 'completed' ? (
+                              <CheckCircle2 className="w-5 h-5 text-emerald-600" />
+                            ) : (
+                              <Circle className="w-5 h-5" />
+                            )}
+                          </button>
+
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                              <span
+                                onClick={() => setDetailsTask(task)}
+                                className={`text-sm font-semibold hover:text-indigo-600 transition-colors cursor-pointer truncate ${
+                                  task.status === 'completed' ? 'line-through text-slate-400' : 'text-slate-900'
+                                }`}
+                              >
+                                {task.title}
+                              </span>
+                              <TaskStatusPill status={task.status} />
+                              <PriorityBadge priority={task.priority} />
+                              {isOverdue && (
+                                <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                                  Overdue
+                                </span>
+                              )}
+                            </div>
+
+                            <div className="flex items-center gap-2 text-xs text-slate-400">
+                              {task.project_name && <span>{task.project_name}</span>}
+                              {task.due_date && (
+                                <>
+                                  <span>•</span>
+                                  <span className={isOverdue ? 'text-rose-600 font-medium' : ''}>
+                                    Due {new Date(task.due_date).toLocaleDateString()}
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <button
+                          onClick={() => setDetailsTask(task)}
+                          title="View Discussion"
+                          className="p-2 rounded-xl text-slate-500 hover:text-indigo-600 hover:bg-slate-50 transition-colors cursor-pointer text-xs flex items-center gap-1 border border-slate-200 shrink-0"
+                        >
+                          <MessageSquare className="w-4 h-4" />
+                          <span className="hidden sm:inline">Discussion</span>
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-            <Link
-              to="/projects"
-              className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 transition-colors"
-            >
-              <span>Manage Projects</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
 
-          {projects.length === 0 ? (
-            <div className="bg-white rounded-3xl p-8 text-center border border-slate-200 space-y-2 shadow-xs">
-              <FolderGit2 className="w-8 h-8 text-slate-400 mx-auto" />
-              <h4 className="text-sm font-bold text-slate-900">No Projects Yet</h4>
-              <p className="text-xs text-slate-500 max-w-xs mx-auto">
-                Create a project to start organizing sprints, assigning deliverables, and tracking team discussions.
-              </p>
-              <button
-                onClick={() => setProjectModalOpen(true)}
-                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-indigo-600 text-white text-xs font-medium cursor-pointer shadow-xs"
-              >
-                <FolderPlus className="w-4 h-4" />
-                <span>Create First Project</span>
-              </button>
+            {/* Section 2: My Deadlines */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-7 h-7 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center">
+                    <Clock className="w-4 h-4" />
+                  </div>
+                  <h3 className="text-base sm:text-lg font-bold text-slate-900">My Deadlines</h3>
+                  <span className="text-xs font-semibold text-slate-400">({myDeadlinesList.length} pending)</span>
+                </div>
+              </div>
+
+              {myDeadlinesList.length === 0 ? (
+                <div className="bg-white rounded-2xl p-6 text-center border border-slate-200 text-xs text-slate-500 shadow-xs">
+                  No upcoming deadlines on your assigned tasks.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                  {myDeadlinesList.slice(0, 3).map((task) => {
+                    const isOverdue = new Date(task.due_date).getTime() < Date.now();
+
+                    return (
+                      <div
+                        key={task.id}
+                        className={`p-4 rounded-2xl bg-white border shadow-xs space-y-2.5 transition-colors ${
+                          isOverdue ? 'border-rose-200 bg-rose-50/20' : 'border-slate-200'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between text-xs">
+                          <PriorityBadge priority={task.priority} />
+                          <span
+                            className={`font-semibold text-xs ${
+                              isOverdue ? 'text-rose-600 font-bold' : 'text-slate-600'
+                            }`}
+                          >
+                            {isOverdue ? 'Overdue: ' : 'Due: '}
+                            {new Date(task.due_date).toLocaleDateString()}
+                          </span>
+                        </div>
+
+                        <h4
+                          onClick={() => setDetailsTask(task)}
+                          className="text-sm font-bold text-slate-900 hover:text-indigo-600 transition-colors cursor-pointer truncate"
+                        >
+                          {task.title}
+                        </h4>
+
+                        <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                          <span className="truncate">{task.project_name || 'Workspace Task'}</span>
+                          <button
+                            onClick={() => handleQuickStatusChange(task, 'completed')}
+                            className="px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-[11px] font-semibold transition-colors cursor-pointer"
+                          >
+                            Mark Done
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {projects.slice(0, 3).map((p) => {
-                const projectTasks = tasks.filter((t) => t.project_id === p.id);
-                const pDone = projectTasks.filter((t) => t.status === 'completed').length;
-                const pPercent = projectTasks.length > 0 ? Math.round((pDone / projectTasks.length) * 100) : 0;
 
-                return (
-                  <Link
-                    key={p.id}
-                    to={`/projects/${p.id}`}
-                    className="bg-white rounded-3xl p-5 border border-slate-200 shadow-xs hover:border-slate-300 hover:shadow-md flex flex-col justify-between group relative transition-all"
-                  >
-                    <div>
-                      <div className="flex items-center justify-between gap-2 mb-2">
-                        <StatusPill status={p.status} />
-                        <span className="text-[10px] text-slate-400">
-                          {projectTasks.length} {projectTasks.length === 1 ? 'task' : 'tasks'}
+            {/* Section 3 & 4: Upcoming Meetings & Calendar (2-Column) */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Section 3: Upcoming Meetings */}
+              <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs space-y-4 flex flex-col justify-between">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
+                        <Video className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-900">Upcoming Meetings</h3>
+                        <p className="text-[11px] text-slate-500">Scheduled team sessions you can join</p>
+                      </div>
+                    </div>
+
+                    <Link
+                      to="/meetings"
+                      className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
+                    >
+                      <span>View all</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </Link>
+                  </div>
+
+                  {upcomingMeetings.length === 0 ? (
+                    <div className="py-8 text-center text-xs text-slate-400">
+                      No upcoming meetings scheduled.
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5">
+                      {upcomingMeetings.slice(0, 3).map((m) => (
+                        <Link
+                          key={m.id}
+                          to={`/meetings/${m.id}`}
+                          className="p-3 rounded-2xl bg-slate-50 border border-slate-200/80 hover:border-purple-300 hover:bg-white transition-all flex items-center justify-between gap-3 group"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+                                Meeting
+                              </span>
+                              <span className="text-xs font-semibold text-slate-900 group-hover:text-purple-600 transition-colors truncate">
+                                {m.title}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                              <Clock3 className="w-3 h-3 text-slate-400 shrink-0" />
+                              <span>
+                                {new Date(m.start_datetime).toLocaleDateString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                })}{' '}
+                                at{' '}
+                                {new Date(m.start_datetime).toLocaleTimeString('en-US', {
+                                  hour: 'numeric',
+                                  minute: '2-digit',
+                                })}
+                              </span>
+                              {m.location && (
+                                <>
+                                  <span>•</span>
+                                  <span className="truncate">{m.location}</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-purple-600 transition-all shrink-0" />
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                  <span>{upcomingMeetings.length} meetings scheduled</span>
+                  <Link to="/meetings" className="text-indigo-600 hover:text-indigo-700 font-medium">
+                    Meeting Details
+                  </Link>
+                </div>
+              </div>
+
+              {/* Section 4: Calendar */}
+              <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs space-y-4 flex flex-col justify-between">
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                        <CalendarDays className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-slate-900">Calendar</h3>
+                        <p className="text-[11px] text-slate-500">Team timeline and events</p>
+                      </div>
+                    </div>
+
+                    <Link
+                      to="/calendar"
+                      className="text-xs text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
+                    >
+                      <span>Open Calendar</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </Link>
+                  </div>
+
+                  {upcomingEvents.length === 0 ? (
+                    <div className="py-8 text-center text-xs text-slate-400">
+                      No events currently scheduled.
+                    </div>
+                  ) : (
+                    <div className="space-y-2.5">
+                      {upcomingEvents.slice(0, 3).map((e) => (
+                        <Link
+                          key={e.id}
+                          to="/calendar"
+                          className="p-3 rounded-2xl bg-slate-50 border border-slate-200/80 hover:border-amber-300 hover:bg-white transition-all flex items-center justify-between gap-3 group"
+                        >
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+                                Event
+                              </span>
+                              <span className="text-xs font-semibold text-slate-900 group-hover:text-amber-600 transition-colors truncate">
+                                {e.title}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                              <Clock3 className="w-3 h-3 text-slate-400 shrink-0" />
+                              <span>
+                                {new Date(e.start_datetime).toLocaleDateString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                })}{' '}
+                                at{' '}
+                                {new Date(e.start_datetime).toLocaleTimeString('en-US', {
+                                  hour: 'numeric',
+                                  minute: '2-digit',
+                                })}
+                              </span>
+                              {e.location && (
+                                <>
+                                  <span>•</span>
+                                  <span className="truncate">{e.location}</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-amber-600 transition-all shrink-0" />
+                        </Link>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="pt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                  <span>{upcomingEvents.length} events scheduled</span>
+                  <Link to="/calendar" className="text-xs font-semibold text-amber-600 hover:text-amber-700">
+                    Full Calendar
+                  </Link>
+                </div>
+              </div>
+            </div>
+
+            {/* Section 5: Team Announcements */}
+            <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
+                    <Megaphone className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">Team Announcements</h3>
+                    <p className="text-xs text-slate-500">Official updates from team leadership</p>
+                  </div>
+                </div>
+
+                <Link
+                  to="/announcements"
+                  className="inline-flex items-center gap-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700"
+                >
+                  <span>View all</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+
+              {announcements.length === 0 ? (
+                <div className="py-8 text-center bg-slate-50/60 rounded-2xl border border-dashed border-slate-200">
+                  <Megaphone className="w-8 h-8 text-slate-300 mx-auto mb-2" />
+                  <p className="text-xs font-medium text-slate-600">No announcements posted yet</p>
+                  <p className="text-[11px] text-slate-400 mt-0.5">
+                    Check back later for leadership updates and important notices.
+                  </p>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {announcements.slice(0, 3).map((item) => (
+                    <div
+                      key={item.id}
+                      className="p-4 rounded-2xl bg-gradient-to-br from-amber-50/30 via-white to-slate-50 border border-amber-100 shadow-2xs flex flex-col justify-between"
+                    >
+                      <div className="space-y-2">
+                        <div className="flex items-start justify-between gap-2">
+                          <h4 className="text-sm font-bold text-slate-900 line-clamp-1">
+                            {item.title}
+                          </h4>
+                          <span className="shrink-0 px-2 py-0.5 rounded-md text-[10px] font-semibold bg-amber-100 text-amber-800">
+                            Broadcast
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-600 line-clamp-3 leading-relaxed">
+                          {item.message}
+                        </p>
+                      </div>
+                      <div className="pt-3 mt-3 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-500">
+                        <span className="font-medium truncate max-w-[130px]">
+                          👤 {item.created_by_name || 'Leader'}
+                        </span>
+                        <span>
+                          {new Date(item.created_at).toLocaleDateString(undefined, {
+                            month: 'short',
+                            day: 'numeric',
+                          })}
                         </span>
                       </div>
-
-                      <h4 className="text-base font-bold text-slate-900 group-hover:text-indigo-600 transition-colors line-clamp-1 mb-1">
-                        {p.name}
-                      </h4>
-
-                      <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed mb-4">
-                        {p.description || 'No description provided.'}
-                      </p>
                     </div>
-
-                    <div className="space-y-2 pt-3 border-t border-slate-100">
-                      <div className="flex items-center justify-between text-xs text-slate-500">
-                        <span>Deliverables</span>
-                        <span className="font-semibold text-slate-700">{pPercent}% Done</span>
-                      </div>
-                      <div className="w-full h-1.5 bg-slate-100 rounded-full overflow-hidden">
-                        <div
-                          className="h-full bg-indigo-600 rounded-full transition-all duration-500"
-                          style={{ width: `${pPercent}%` }}
-                        />
-                      </div>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Recent Tasks Section & Filter Bar */}
-        <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-            <div className="flex items-center gap-2">
-              <CheckSquare className="w-5 h-5 text-indigo-600" />
-              <h3 className="text-lg font-bold text-slate-900">Recent Deliverables & Tasks</h3>
-              <span className="text-xs text-slate-400">({filteredTasks.length})</span>
-            </div>
-
-            <Link
-              to="/tasks"
-              className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 transition-colors"
-            >
-              <span>View Tasks Board</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </Link>
-          </div>
-
-          {/* Task Filters Bar */}
-          <div className="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 p-3 bg-white rounded-2xl border border-slate-200 shadow-xs">
-            <div className="relative flex-1 max-w-sm">
-              <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
-              <input
-                type="text"
-                value={taskSearch}
-                onChange={(e) => setTaskSearch(e.target.value)}
-                placeholder="Search recent tasks..."
-                className="w-full pl-9 pr-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-              />
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              {/* Status Filter */}
-              <select
-                value={taskStatusFilter}
-                onChange={(e) => setTaskStatusFilter(e.target.value)}
-                className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:border-indigo-500"
-              >
-                <option value="all">All Statuses</option>
-                <option value="todo">To Do</option>
-                <option value="in_progress">In Progress</option>
-                <option value="completed">Completed</option>
-                <option value="overdue">Overdue Only</option>
-              </select>
-
-              {/* Priority Filter */}
-              <select
-                value={taskPriorityFilter}
-                onChange={(e) => setTaskPriorityFilter(e.target.value)}
-                className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:border-indigo-500"
-              >
-                <option value="all">All Priorities</option>
-                <option value="urgent">Urgent</option>
-                <option value="high">High</option>
-                <option value="medium">Medium</option>
-                <option value="low">Low</option>
-              </select>
-
-              {/* Assignee Filter */}
-              {users.length > 0 && (
-                <select
-                  value={taskAssigneeFilter}
-                  onChange={(e) => setTaskAssigneeFilter(e.target.value)}
-                  className="px-2.5 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-700 focus:outline-none focus:border-indigo-500"
-                >
-                  <option value="all">All Assignees</option>
-                  <option value="unassigned">Unassigned</option>
-                  {users.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      👤 {u.name}
-                    </option>
                   ))}
-                </select>
+                </div>
+              )}
+            </div>
+
+            {/* Section 6: Knowledge Base */}
+            <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs space-y-4">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-8 h-8 rounded-xl bg-pink-50 text-pink-600 flex items-center justify-center">
+                    <BookOpen className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">Knowledge Base</h3>
+                    <p className="text-xs text-slate-500">Published engineering articles and resources</p>
+                  </div>
+                </div>
+
+                <Link
+                  to="/knowledge"
+                  className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 flex items-center gap-1 transition-colors"
+                >
+                  <span>Browse articles</span>
+                  <ArrowRight className="w-3.5 h-3.5" />
+                </Link>
+              </div>
+
+              {articles.length === 0 ? (
+                <div className="py-8 text-center text-xs text-slate-400">
+                  No published knowledge articles yet in this workspace.
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {articles.slice(0, 3).map((art) => (
+                    <Link
+                      key={art.id}
+                      to={`/knowledge/${art.id}`}
+                      className="p-4 rounded-2xl bg-white border border-slate-200 hover:border-pink-300 shadow-2xs hover:shadow-xs transition-all flex flex-col justify-between group"
+                    >
+                      <div className="space-y-2">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-pink-50 text-pink-700 border border-pink-200">
+                            {art.category_name || 'General'}
+                          </span>
+                          <span className="text-[10px] text-slate-400">
+                            {new Date(art.updated_at || art.created_at).toLocaleDateString()}
+                          </span>
+                        </div>
+                        <h4 className="text-sm font-bold text-slate-900 group-hover:text-pink-600 transition-colors line-clamp-1">
+                          {art.title}
+                        </h4>
+                        <p className="text-xs text-slate-500 line-clamp-2 leading-relaxed">
+                          {art.content}
+                        </p>
+                      </div>
+                      <div className="pt-3 mt-3 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+                        <span className="truncate">👤 {art.author_name || 'Team Member'}</span>
+                        <ArrowRight className="w-3.5 h-3.5 text-slate-400 group-hover:text-pink-600 transition-all" />
+                      </div>
+                    </Link>
+                  ))}
+                </div>
               )}
             </div>
           </div>
-
-          {/* Recent Tasks List */}
-          {filteredTasks.length === 0 ? (
-            <div className="bg-white rounded-2xl p-8 text-center border border-slate-200 text-xs text-slate-500 shadow-xs">
-              No tasks found matching your filters.
-            </div>
-          ) : (
-            <div className="space-y-2.5">
-              {filteredTasks.slice(0, 5).map((task) => {
-                const isOverdue =
-                  task.due_date &&
-                  new Date(task.due_date).getTime() < Date.now() &&
-                  task.status !== 'completed';
-
-                return (
-                  <div
-                    key={task.id}
-                    className="p-3.5 sm:p-4 rounded-2xl bg-white border border-slate-200 hover:border-slate-300 shadow-xs transition-all flex items-center justify-between gap-4 group"
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      {isLeader || String(task.assigned_to) === String(user?.id) ? (
-                        <button
-                          onClick={() => {
-                            const next =
-                              task.status === 'todo'
-                                ? 'in_progress'
-                                : task.status === 'in_progress'
-                                ? 'completed'
-                                : 'todo';
-                            handleQuickStatusChange(task, next);
-                          }}
-                          title="Advance status"
-                          className="text-slate-400 hover:text-indigo-600 transition-colors cursor-pointer shrink-0"
-                        >
-                          {task.status === 'completed' ? (
-                            <CheckCircle2 className="w-5 h-5 text-emerald-600" />
-                          ) : (
-                            <Circle className="w-5 h-5" />
-                          )}
-                        </button>
-                      ) : (
-                        <div className="text-slate-300 shrink-0" title="Only the assignee or team leader can update status">
-                          {task.status === 'completed' ? (
-                            <CheckCircle2 className="w-5 h-5 text-emerald-600 opacity-60" />
-                          ) : (
-                            <Circle className="w-5 h-5" />
-                          )}
-                        </div>
-                      )}
-
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 flex-wrap mb-0.5">
-                          <span
-                            onClick={() => setDetailsTask(task)}
-                            className={`text-sm font-semibold hover:text-indigo-600 transition-colors cursor-pointer truncate ${
-                              task.status === 'completed' ? 'line-through text-slate-400' : 'text-slate-900'
-                            }`}
-                          >
-                            {task.title}
-                          </span>
-                          <TaskStatusPill status={task.status} />
-                          <PriorityBadge priority={task.priority} />
-                          {isOverdue && (
-                            <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
-                              Overdue
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-2 text-xs text-slate-400">
-                          {task.project_name && <span>{task.project_name}</span>}
-                          {task.assignee_name && (
-                            <>
-                              <span>•</span>
-                              <span>👤 {task.assignee_name}</span>
-                            </>
-                          )}
-                          {task.due_date && (
-                            <>
-                              <span>•</span>
-                              <span className={isOverdue ? 'text-rose-600 font-medium' : ''}>
-                                Due {new Date(task.due_date).toLocaleDateString()}
-                              </span>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-2 shrink-0">
-                      <button
-                        onClick={() => setDetailsTask(task)}
-                        title="View Discussion & Details"
-                        className="p-2 rounded-xl text-slate-500 hover:text-indigo-600 hover:bg-slate-50 transition-colors cursor-pointer text-xs flex items-center gap-1 border border-slate-200"
-                      >
-                        <MessageSquare className="w-4 h-4" />
-                        <span className="hidden sm:inline">Discussion</span>
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* Platform Modules Grid */}
-        <div className="space-y-4 pt-4">
-          <div className="flex items-center gap-2">
-            <Sparkles className="w-5 h-5 text-indigo-600" />
-            <h3 className="text-lg font-bold text-slate-900">Integrated Platform Modules</h3>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3.5">
-            {modules.map((mod, idx) => {
-              const Icon = mod.icon;
-              return (
-                <Link
-                  key={idx}
-                  to={mod.link}
-                  className="bg-white rounded-2xl p-4 flex flex-col justify-between border border-slate-200 shadow-xs hover:border-slate-300 hover:shadow-md transition-all group"
-                >
-                  <div>
-                    <div className={`w-9 h-9 rounded-xl ${mod.color} flex items-center justify-center mb-2.5 shadow-2xs group-hover:scale-105 transition-transform`}>
-                      <Icon className="w-4 h-4" />
-                    </div>
-                    <h4 className="text-sm font-bold text-slate-900 mb-1 group-hover:text-indigo-600 transition-colors">
-                      {mod.title}
-                    </h4>
-                    <p className="text-[11px] text-slate-500 leading-relaxed mb-3 line-clamp-2">
-                      {mod.description}
-                    </p>
-                  </div>
-                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-[11px]">
-                    <span className="text-indigo-600 font-medium">{mod.badge}</span>
-                    <ArrowRight className="w-3 h-3 text-slate-400 group-hover:text-slate-700 transition-colors" />
-                  </div>
-                </Link>
-              );
-            })}
-          </div>
-        </div>
-
-        {/* Protected API Test Panel */}
-        <div className="bg-white rounded-2xl p-6 border border-slate-200 shadow-xs space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-slate-100">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-purple-50 text-purple-600 flex items-center justify-center">
-                <KeyRound className="w-4 h-4" />
-              </div>
-              <div>
-                <h4 className="text-sm font-bold text-slate-900">Protected API Verification</h4>
-                <p className="text-xs text-slate-500">Live JWT verification with PostgreSQL auth middleware</p>
-              </div>
-            </div>
-
-            <button
-              onClick={handleTestProtectedApi}
-              disabled={testing}
-              className="px-3.5 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 text-xs font-medium transition-colors cursor-pointer disabled:opacity-50"
-            >
-              {testing ? 'Verifying...' : 'Call GET /api/protected/test'}
-            </button>
-          </div>
-
-          {testResult && (
-            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-800 font-mono">
-              ✅ Authorization Verified: HTTP {testResult.status} ({testResult.latency} ms)
-            </div>
-          )}
-
-          {testError && (
-            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-xs text-rose-700">
-              ❌ {testError}
-            </div>
-          )}
-        </div>
+        )}
       </div>
 
-      {/* Modals */}
+      {/* ========================================================================= */}
+      {/* MODALS & OVERLAYS                                                         */}
+      {/* ========================================================================= */}
+      {/* Create Project Modal (Leader) */}
       <ProjectModal
         isOpen={projectModalOpen}
         onClose={() => setProjectModalOpen(false)}
@@ -1313,6 +1797,7 @@ export default function DashboardPage() {
         loading={submittingProject}
       />
 
+      {/* Create Task Modal (Leader) */}
       <TaskModal
         isOpen={taskModalOpen}
         onClose={() => setTaskModalOpen(false)}
@@ -1322,13 +1807,33 @@ export default function DashboardPage() {
         loading={submittingTask}
       />
 
+      {/* Create Meeting Modal (Leader) */}
+      <MeetingModal
+        isOpen={meetingModalOpen}
+        onClose={() => setMeetingModalOpen(false)}
+        onSubmit={handleCreateMeeting}
+        loading={submittingMeeting}
+      />
+
+      {/* Invite Member Modal (Leader) */}
+      <InviteMemberModal
+        isOpen={inviteModalOpen}
+        onClose={() => setInviteModalOpen(false)}
+        teamId={currentTeam?.id}
+        teamName={currentTeam?.name}
+        onSuccess={() => {
+          fetchData();
+        }}
+      />
+
+      {/* Task Details Modal (Both Leader & Member) */}
       <TaskDetailsModal
         isOpen={!!detailsTask}
         onClose={() => setDetailsTask(null)}
         task={detailsTask}
       />
 
-      {/* Quick Create Announcement Modal */}
+      {/* Quick Create Announcement Modal (Leader) */}
       {announcementModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-200">
           <div className="bg-white max-w-lg w-full rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-2xl relative">
@@ -1343,12 +1848,14 @@ export default function DashboardPage() {
             </button>
 
             <div className="flex items-center gap-3 mb-6">
-              <div className="w-10 h-10 rounded-xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600">
+              <div className="w-10 h-10 rounded-2xl bg-amber-50 border border-amber-100 flex items-center justify-center text-amber-600">
                 <Megaphone className="w-5 h-5" />
               </div>
               <div>
                 <h3 className="text-lg font-bold text-slate-900">Post Team Announcement</h3>
-                <p className="text-xs text-slate-500">Broadcast a message to all members of {currentTeam?.name || 'this team'}</p>
+                <p className="text-xs text-slate-500">
+                  Broadcast a message to all members of {currentTeam?.name || 'this team'}
+                </p>
               </div>
             </div>
 
@@ -1368,7 +1875,7 @@ export default function DashboardPage() {
                   type="text"
                   value={announcementTitle}
                   onChange={(e) => setAnnouncementTitle(e.target.value)}
-                  placeholder="e.g., Q3 Planning Sync or Deployment Freeze"
+                  placeholder="e.g., Sprint 4 Kickoff or Architecture Freeze"
                   className="w-full px-3.5 py-2.5 rounded-xl border border-slate-200 focus:border-amber-500 focus:ring-2 focus:ring-amber-200 outline-none text-sm text-slate-900 transition-all placeholder:text-slate-400"
                   required
                 />
