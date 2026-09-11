@@ -12,12 +12,14 @@ import {
   Users,
   CheckSquare,
   ArrowUpRight,
+  Bell,
 } from 'lucide-react';
 import { calendarService } from '../services/calendarService';
 import { taskService } from '../services/taskService';
 import { meetingService } from '../services/meetingService';
 import EventModal from '../components/calendar/EventModal';
 import DeleteEventModal from '../components/calendar/DeleteEventModal';
+import ReminderModal from '../components/reminders/ReminderModal';
 import PriorityBadge from '../components/tasks/PriorityBadge';
 import TaskStatusPill from '../components/tasks/TaskStatusPill';
 import { useTeam } from '../context/TeamContext';
@@ -41,6 +43,20 @@ export default function CalendarPage() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [deletingEvent, setDeletingEvent] = useState(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Reminder Modal
+  const [reminderModalOpen, setReminderModalOpen] = useState(false);
+  const [reminderTarget, setReminderTarget] = useState(null);
+
+  const handleOpenReminder = (item) => {
+    setReminderTarget({
+      type: item.type === 'event' ? 'calendar_event' : 'meeting',
+      id: item.rawId,
+      title: item.title,
+      startDatetime: item.datetime,
+    });
+    setReminderModalOpen(true);
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -362,34 +378,46 @@ export default function CalendarPage() {
                       </div>
 
                       {/* Item controls */}
-                      {item.type === 'event' && isLeader && (
-                        <div className="flex items-center gap-1">
+                      <div className="flex items-center gap-1">
+                        {(item.type === 'event' || item.type === 'meeting') && (
                           <button
-                            onClick={() => handleEditEvent(item.original)}
-                            title="Edit Event"
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                            onClick={() => handleOpenReminder(item)}
+                            title="Set Reminder"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 transition-colors cursor-pointer"
                           >
-                            <Edit3 className="w-3.5 h-3.5" />
+                            <Bell className="w-3.5 h-3.5" />
                           </button>
-                          <button
-                            onClick={() => handleDeleteEventClick(item.original)}
-                            title="Delete Event"
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </div>
-                      )}
+                        )}
 
-                      {item.type === 'meeting' && (
-                        <a
-                          href={`/meetings/${item.rawId}`}
-                          className="p-1.5 rounded-lg text-purple-600 hover:bg-purple-50 transition-colors"
-                          title="Open Meeting Details"
-                        >
-                          <ArrowUpRight className="w-3.5 h-3.5" />
-                        </a>
-                      )}
+                        {item.type === 'event' && isLeader && (
+                          <>
+                            <button
+                              onClick={() => handleEditEvent(item.original)}
+                              title="Edit Event"
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer"
+                            >
+                              <Edit3 className="w-3.5 h-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteEventClick(item.original)}
+                              title="Delete Event"
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </>
+                        )}
+
+                        {item.type === 'meeting' && (
+                          <a
+                            href={`/meetings/${item.rawId}`}
+                            className="p-1.5 rounded-lg text-purple-600 hover:bg-purple-50 transition-colors"
+                            title="Open Meeting Details"
+                          >
+                            <ArrowUpRight className="w-3.5 h-3.5" />
+                          </a>
+                        )}
+                      </div>
                     </div>
 
                     {/* Title & Description */}
@@ -451,6 +479,19 @@ export default function CalendarPage() {
         onConfirm={handleConfirmDelete}
         eventTitle={deletingEvent?.title || ''}
         loading={isDeleting}
+      />
+
+      {/* Reminder Scheduling Modal */}
+      <ReminderModal
+        isOpen={reminderModalOpen}
+        onClose={() => {
+          setReminderModalOpen(false);
+          setReminderTarget(null);
+        }}
+        referenceType={reminderTarget?.type}
+        referenceId={reminderTarget?.id}
+        title={reminderTarget?.title}
+        startDatetime={reminderTarget?.startDatetime}
       />
     </div>
   );

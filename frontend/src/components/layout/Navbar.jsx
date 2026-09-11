@@ -17,9 +17,11 @@ import {
   Briefcase,
   ChevronDown,
   Check,
+  Bell,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useTeam } from '../../context/TeamContext';
+import { notificationService } from '../../services/notificationService';
 
 // Primary 4 modules shown on medium screens (1024px - 1279px)
 const primaryNavLinks = [
@@ -46,15 +48,41 @@ export default function Navbar({ onToggleSidebar }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [teamDropdownOpen, setTeamDropdownOpen] = useState(false);
   const [moreDropdownOpen, setMoreDropdownOpen] = useState(false);
+  const [notifDropdownOpen, setNotifDropdownOpen] = useState(false);
+
+  // Notification state
+  const [notifications, setNotifications] = useState([]);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   const teamDropdownRef = useRef(null);
   const moreDropdownRef = useRef(null);
+  const notifDropdownRef = useRef(null);
+
+  // Fetch notifications
+  const fetchNotifications = async () => {
+    if (!isAuthenticated) return;
+    try {
+      const res = await notificationService.getNotifications();
+      const data = res?.data || res;
+      setNotifications(data?.notifications || []);
+      setUnreadCount(data?.unreadCount || 0);
+    } catch (err) {
+      // Silently catch background poll error
+    }
+  };
+
+  useEffect(() => {
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 30000);
+    return () => clearInterval(interval);
+  }, [isAuthenticated, currentTeam?.id]);
 
   // Close dropdowns on route change
   useEffect(() => {
     setMobileMenuOpen(false);
     setTeamDropdownOpen(false);
     setMoreDropdownOpen(false);
+    setNotifDropdownOpen(false);
   }, [location.pathname, location.hash]);
 
   // Handle outside clicks and keyboard Escape key
@@ -66,12 +94,16 @@ export default function Navbar({ onToggleSidebar }) {
       if (moreDropdownRef.current && !moreDropdownRef.current.contains(e.target)) {
         setMoreDropdownOpen(false);
       }
+      if (notifDropdownRef.current && !notifDropdownRef.current.contains(e.target)) {
+        setNotifDropdownOpen(false);
+      }
     };
 
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
         setTeamDropdownOpen(false);
         setMoreDropdownOpen(false);
+        setNotifDropdownOpen(false);
         setMobileMenuOpen(false);
       }
     };
@@ -83,6 +115,28 @@ export default function Navbar({ onToggleSidebar }) {
       document.removeEventListener('keydown', handleKeyDown);
     };
   }, []);
+
+  const handleMarkRead = async (id) => {
+    try {
+      await notificationService.markAsRead(id);
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
+      );
+      setUnreadCount((prev) => Math.max(0, prev - 1));
+    } catch (err) {
+      console.error('Failed to mark notification read:', err);
+    }
+  };
+
+  const handleMarkAllRead = async () => {
+    try {
+      await notificationService.markAllAsRead();
+      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
+      setUnreadCount(0);
+    } catch (err) {
+      console.error('Failed to mark all read:', err);
+    }
+  };
 
   const closeMobileMenu = () => setMobileMenuOpen(false);
 
@@ -323,9 +377,99 @@ export default function Navbar({ onToggleSidebar }) {
             </div>
 
             {/* ------------------------------------------------------------- */}
-            {/* 3. RIGHT: User Profile Button, Logout & Mobile Trigger        */}
+            {/* 3. RIGHT: Notifications, User Profile, Logout & Mobile Trigger */}
             {/* ------------------------------------------------------------- */}
             <div className="flex items-center gap-2 sm:gap-2.5 shrink-0 justify-end pl-1 lg:pl-2">
+              {/* Notification Bell Dropdown */}
+              <div className="relative shrink-0" ref={notifDropdownRef}>
+                <button
+                  onClick={() => setNotifDropdownOpen((prev) => !prev)}
+                  title="Notifications"
+                  aria-label={`Notifications (${unreadCount} unread)`}
+                  className={`relative inline-flex items-center justify-center w-10 h-10 rounded-xl border text-slate-600 hover:text-slate-900 transition-colors cursor-pointer shadow-2xs ${
+                    notifDropdownOpen
+                      ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
+                      : 'bg-white hover:bg-slate-50 border-slate-200'
+                  }`}
+                >
+                  <Bell className="w-4 h-4" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-1 -right-1 min-w-4 h-4 px-1 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center shadow-xs animate-in zoom-in-50">
+                      {unreadCount > 9 ? '9+' : unreadCount}
+                    </span>
+                  )}
+                </button>
+
+                {notifDropdownOpen && (
+                  <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 bg-white rounded-2xl shadow-xl border border-slate-200 overflow-hidden z-50 animate-in fade-in zoom-in-95 duration-100">
+                    {/* Dropdown Header */}
+                    <div className="flex items-center justify-between px-4 py-3 border-b border-slate-100 bg-slate-50/70">
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-900">Notifications</span>
+                        {unreadCount > 0 && (
+                          <span className="px-1.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 text-[10px] font-bold border border-indigo-200">
+                            {unreadCount} new
+                          </span>
+                        )}
+                      </div>
+                      {unreadCount > 0 && (
+                        <button
+                          onClick={handleMarkAllRead}
+                          className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 transition-colors cursor-pointer"
+                        >
+                          Mark all read
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Dropdown List */}
+                    <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
+                      {notifications.length === 0 ? (
+                        <div className="py-8 px-4 text-center">
+                          <Bell className="w-7 h-7 text-slate-300 mx-auto mb-2" />
+                          <p className="text-xs font-semibold text-slate-700">No notifications yet</p>
+                          <p className="text-[11px] text-slate-400 mt-0.5">
+                            Meeting and calendar reminders will appear here.
+                          </p>
+                        </div>
+                      ) : (
+                        notifications.map((notif) => (
+                          <div
+                            key={notif.id}
+                            onClick={() => !notif.is_read && handleMarkRead(notif.id)}
+                            className={`p-3.5 transition-colors cursor-pointer flex items-start gap-3 hover:bg-slate-50/80 ${
+                              !notif.is_read ? 'bg-indigo-50/30' : 'bg-white'
+                            }`}
+                          >
+                            <div
+                              className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${
+                                !notif.is_read ? 'bg-indigo-600' : 'bg-transparent'
+                              }`}
+                            />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center justify-between gap-1">
+                                <h4 className="text-xs font-bold text-slate-900 truncate">
+                                  {notif.title}
+                                </h4>
+                                <span className="text-[10px] text-slate-400 shrink-0">
+                                  {new Date(notif.created_at).toLocaleTimeString([], {
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                  })}
+                                </span>
+                              </div>
+                              <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
+                                {notif.message}
+                              </p>
+                            </div>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Compact User Profile Button */}
               <div
                 className="inline-flex items-center gap-1.5 sm:gap-2 h-10 px-2 sm:px-2.5 xl:px-3 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium text-slate-700 shrink-0"

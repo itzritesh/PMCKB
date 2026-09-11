@@ -13,6 +13,8 @@ const kbRoutes = require('./kb.routes');
 const teamRoutes = require('./team.routes');
 const invitationRoutes = require('./invitation.routes');
 const announcementRoutes = require('./announcement.routes');
+const reminderRoutes = require('./reminder.routes');
+const notificationRoutes = require('./notification.routes');
 
 // Mount routes under /api
 router.use('/health', healthRoutes);
@@ -28,5 +30,7 @@ router.use('/kb', kbRoutes);
 router.use('/teams', teamRoutes);
 router.use('/invitations', invitationRoutes);
 router.use('/announcements', announcementRoutes);
+router.use('/reminders', reminderRoutes);
+router.use('/notifications', notificationRoutes);
 
 module.exports = router;

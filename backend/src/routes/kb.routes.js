@@ -19,6 +19,10 @@ router.delete('/categories/:id', verifyResourceTeamAccess('kb_categories', 'id')
 // Articles
 router.post('/articles', KbArticleController.createArticle);
 router.get('/articles', KbArticleController.getArticles);
+router.get('/articles/search', (req, res, next) => {
+  req.query.search = req.query.search || req.query.q;
+  return KbArticleController.getArticles(req, res, next);
+});
 router.get('/articles/:id', verifyResourceTeamAccess('kb_articles', 'id'), KbArticleController.getArticleById);
 router.put('/articles/:id', verifyResourceTeamAccess('kb_articles', 'id'), KbArticleController.updateArticle);
 router.delete('/articles/:id', verifyResourceTeamAccess('kb_articles', 'id'), KbArticleController.deleteArticle);

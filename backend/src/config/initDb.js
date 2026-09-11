@@ -205,11 +205,50 @@ async function initDb() {
     CREATE INDEX IF NOT EXISTS idx_kb_articles_status ON kb_articles(status);
     CREATE INDEX IF NOT EXISTS idx_kb_articles_author_id ON kb_articles(author_id);
     CREATE INDEX IF NOT EXISTS idx_kb_articles_team_id ON kb_articles(team_id);
+
+    -- Reminders Table (Calendar & Meeting Reminder System)
+    CREATE TABLE IF NOT EXISTS reminders (
+      id SERIAL PRIMARY KEY,
+      team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      reminder_type VARCHAR(50) NOT NULL CHECK (reminder_type IN ('meeting', 'calendar_event')),
+      reference_type VARCHAR(50) NOT NULL CHECK (reference_type IN ('meeting', 'calendar_event')),
+      reference_id INTEGER NOT NULL,
+      remind_at TIMESTAMP WITH TIME ZONE NOT NULL,
+      status VARCHAR(50) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'triggered', 'dismissed', 'cancelled')),
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_reminders_team_id ON reminders(team_id);
+    CREATE INDEX IF NOT EXISTS idx_reminders_user_id ON reminders(user_id);
+    CREATE INDEX IF NOT EXISTS idx_reminders_remind_at ON reminders(remind_at);
+    CREATE INDEX IF NOT EXISTS idx_reminders_status ON reminders(status);
+    CREATE INDEX IF NOT EXISTS idx_reminders_reference_type ON reminders(reference_type);
+    CREATE INDEX IF NOT EXISTS idx_reminders_reference_id ON reminders(reference_id);
+    CREATE INDEX IF NOT EXISTS idx_reminders_pending_due ON reminders(status, remind_at);
+
+    -- Notifications Table
+    CREATE TABLE IF NOT EXISTS notifications (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+      type VARCHAR(50) NOT NULL DEFAULT 'reminder',
+      title VARCHAR(255) NOT NULL,
+      message TEXT NOT NULL,
+      reference_type VARCHAR(50),
+      reference_id INTEGER,
+      is_read BOOLEAN NOT NULL DEFAULT FALSE,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
+    CREATE INDEX IF NOT EXISTS idx_notifications_team_id ON notifications(team_id);
+    CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read);
+    CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at);
   `;
 
   try {
     await query(createTablesQuery);
-    console.log('✅ Database initialization: All 14 relational tables and indexes verified.');
+    console.log('✅ Database initialization: All 16 relational tables and indexes verified.');
 
     // Execute safe migration to alter columns (for existing databases) and backfill records
     console.log('Running safe migration and data backfill check...');

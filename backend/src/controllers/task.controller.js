@@ -222,13 +222,16 @@ const TaskController = {
       }
 
       // Leader flow:
-      if (!title || typeof title !== 'string' || !title.trim()) {
-        return sendError(res, 'Task title is required and cannot be empty.', 400);
+      const taskTitle = title !== undefined ? (typeof title === 'string' ? title.trim() : '') : req.resource.title;
+      if (!taskTitle) {
+        return sendError(res, 'Task title cannot be empty.', 400);
       }
 
-      if (title.trim().length > 255) {
+      if (taskTitle.length > 255) {
         return sendError(res, 'Task title cannot exceed 255 characters.', 400);
       }
+
+      const taskDesc = description !== undefined ? description : req.resource.description;
 
       const taskStatus = status || req.resource.status;
       if (!ALLOWED_STATUSES.includes(taskStatus)) {
@@ -286,8 +289,8 @@ const TaskController = {
 
       const updatedTask = await TaskModel.update({
         id: req.resource.id,
-        title,
-        description,
+        title: taskTitle,
+        description: taskDesc,
         status: taskStatus,
         priority: taskPriority,
         dueDate: formattedDueDate,

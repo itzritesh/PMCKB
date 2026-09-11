@@ -2,6 +2,7 @@ const app = require('./app');
 const env = require('./config/env');
 const { testDbConnection, pool } = require('./config/db');
 const { initDb } = require('./config/initDb');
+const { startReminderProcessor, stopReminderProcessor } = require('./services/reminderProcessor');
 
 const PORT = env.PORT || 5000;
 
@@ -23,6 +24,8 @@ const server = app.listen(PORT, async () => {
     } catch (err) {
       console.warn('⚠️  Could not run automatic schema initialization:', err.message);
     }
+    // Start background reminder processor
+    startReminderProcessor(30000);
   } else {
     console.log(`⚠️  PostgreSQL warning: ${dbStatus.message}`);
     console.log(`   Detail: ${dbStatus.error}`);
@@ -34,6 +37,7 @@ const server = app.listen(PORT, async () => {
 // Graceful shutdown handling
 const handleShutdown = (signal) => {
   console.log(`\nReceived ${signal}. Shutting down gracefully...`);
+  stopReminderProcessor();
   server.close(async () => {
     console.log('HTTP server closed.');
     try {

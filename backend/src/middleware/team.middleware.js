@@ -208,10 +208,50 @@ const verifyResourceTeamAccess = (tableName, idParam = 'id', options = {}) => {
   };
 };
 
+/**
+ * Resolves optional team access:
+ * If explicit team ID is passed (via header, query, body): strictly verifies membership (returns 403 if not).
+ * If omitted: leaves req.teamId = null so endpoints can query across all teams the user belongs to.
+ */
+const verifyOptionalTeamAccess = async (req, res, next) => {
+  try {
+    const explicitTeamId =
+      req.headers['x-team-id'] ||
+      req.query.teamId ||
+      req.query.team_id ||
+      (req.body && (req.body.teamId || req.body.team_id));
+
+    if (explicitTeamId) {
+      const targetTeamId = parseInt(explicitTeamId, 10);
+      if (isNaN(targetTeamId)) {
+        return sendError(res, 'Invalid team ID format.', 400);
+      }
+
+      const membership = await TeamModel.findMembership(targetTeamId, req.user.id);
+      if (!membership) {
+        return sendError(res, 'Access denied. You are not a member of this workspace.', 403);
+      }
+
+      req.teamId = targetTeamId;
+      req.teamRole = membership.role;
+      req.isLeader = membership.role === 'leader';
+      req.teamMember = membership;
+      return next();
+    }
+
+    req.teamId = null;
+    next();
+  } catch (error) {
+    next(error);
+  }
+};
+
 module.exports = {
   requireTeamMember,
   requireTeamLeader,
   verifyTeamAccess,
+  verifyOptionalTeamAccess,
   requireLeader,
   verifyResourceTeamAccess,
 };
+

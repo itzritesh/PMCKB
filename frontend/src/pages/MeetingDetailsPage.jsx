@@ -19,13 +19,16 @@ import {
   Check,
   X,
   HelpCircle,
+  Bell,
 } from 'lucide-react';
 import { meetingService } from '../services/meetingService';
 import { teamService } from '../services/teamService';
+import { reminderService } from '../services/reminderService';
 import { useAuth } from '../context/AuthContext';
 import { useTeam } from '../context/TeamContext';
 import MeetingModal from '../components/meetings/MeetingModal';
 import DeleteMeetingModal from '../components/meetings/DeleteMeetingModal';
+import ReminderModal from '../components/reminders/ReminderModal';
 
 export default function MeetingDetailsPage() {
   const { id } = useParams();
@@ -36,6 +39,10 @@ export default function MeetingDetailsPage() {
   const [meeting, setMeeting] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+
+  // Reminders state
+  const [reminderModalOpen, setReminderModalOpen] = useState(false);
+  const [meetingReminders, setMeetingReminders] = useState([]);
 
   // Users for attendee picker
   const [allUsers, setAllUsers] = useState([]);
@@ -91,8 +98,23 @@ export default function MeetingDetailsPage() {
     }
   };
 
+  const fetchMeetingReminders = async () => {
+    if (!id) return;
+    try {
+      const res = await reminderService.getReminders({
+        reference_type: 'meeting',
+        reference_id: id,
+      });
+      const list = res?.data?.reminders || res?.reminders || [];
+      setMeetingReminders(Array.isArray(list) ? list : []);
+    } catch (err) {
+      console.error('Failed to load meeting reminders:', err);
+    }
+  };
+
   useEffect(() => {
     fetchMeeting();
+    fetchMeetingReminders();
   }, [id, currentTeam?.id]);
 
   const handleUpdateMeeting = async (formData) => {
@@ -284,24 +306,34 @@ export default function MeetingDetailsPage() {
               </p>
             </div>
 
-            {isLeader && (
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setEditModalOpen(true)}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-medium transition-colors cursor-pointer shadow-2xs"
-                >
-                  <Edit3 className="w-3.5 h-3.5" />
-                  <span>Edit</span>
-                </button>
-                <button
-                  onClick={() => setDeleteModalOpen(true)}
-                  className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-medium transition-colors cursor-pointer"
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>Delete</span>
-                </button>
-              </div>
-            )}
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => setReminderModalOpen(true)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-xs font-semibold transition-colors cursor-pointer shadow-2xs"
+              >
+                <Bell className="w-3.5 h-3.5" />
+                <span>Set Reminder</span>
+              </button>
+
+              {isLeader && (
+                <>
+                  <button
+                    onClick={() => setEditModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-medium transition-colors cursor-pointer shadow-2xs"
+                  >
+                    <Edit3 className="w-3.5 h-3.5" />
+                    <span>Edit</span>
+                  </button>
+                  <button
+                    onClick={() => setDeleteModalOpen(true)}
+                    className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 text-xs font-medium transition-colors cursor-pointer"
+                  >
+                    <Trash2 className="w-3.5 h-3.5" />
+                    <span>Delete</span>
+                  </button>
+                </>
+              )}
+            </div>
           </div>
 
           {/* Description & Agenda */}
@@ -391,6 +423,95 @@ export default function MeetingDetailsPage() {
                   <span>Tentative</span>
                 </button>
               </div>
+            </div>
+          )}
+        </div>
+
+        {/* SECTION: MEETING REMINDERS */}
+        <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200 shadow-xs space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pb-3 border-b border-slate-100">
+            <div className="flex items-center gap-2.5">
+              <div className="w-9 h-9 rounded-2xl bg-indigo-50 border border-indigo-100 text-indigo-600 flex items-center justify-center">
+                <Bell className="w-4 h-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-bold text-slate-900">Your Reminders</h3>
+                <p className="text-[11px] text-slate-500">Personal alerts configured for this meeting</p>
+              </div>
+            </div>
+            <button
+              onClick={() => setReminderModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer self-start sm:self-auto"
+            >
+              <Bell className="w-3.5 h-3.5" />
+              <span>Add Reminder</span>
+            </button>
+          </div>
+
+          {meetingReminders.length === 0 ? (
+            <div className="p-6 rounded-2xl bg-slate-50 border border-dashed border-slate-200 text-center text-xs text-slate-500">
+              No reminders configured for this meeting yet. Click <strong>Add Reminder</strong> to receive timely notifications.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {meetingReminders.map((rem) => {
+                const rDate = new Date(rem.remind_at);
+                return (
+                  <div
+                    key={rem.id}
+                    className="flex items-center justify-between p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs"
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div
+                        className={`w-2.5 h-2.5 rounded-full shrink-0 ${
+                          rem.status === 'pending'
+                            ? 'bg-amber-500'
+                            : rem.status === 'triggered'
+                            ? 'bg-indigo-600'
+                            : rem.status === 'dismissed'
+                            ? 'bg-slate-400'
+                            : 'bg-rose-500'
+                        }`}
+                      />
+                      <div className="min-w-0">
+                        <span className="font-semibold text-slate-800 block truncate">
+                          {rDate.toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                        </span>
+                        <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                          {rem.status === 'pending'
+                            ? 'Active / Pending'
+                            : rem.status === 'triggered'
+                            ? 'Triggered ✓'
+                            : rem.status}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1 shrink-0">
+                      {rem.status === 'pending' && (
+                        <button
+                          onClick={async () => {
+                            await reminderService.dismissReminder(rem.id);
+                            fetchMeetingReminders();
+                          }}
+                          className="px-2 py-1 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 text-[11px] font-medium text-slate-600 cursor-pointer"
+                        >
+                          Dismiss
+                        </button>
+                      )}
+                      <button
+                        onClick={async () => {
+                          await reminderService.deleteReminder(rem.id);
+                          fetchMeetingReminders();
+                        }}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
+                        title="Delete Reminder"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </div>
@@ -684,6 +805,17 @@ export default function MeetingDetailsPage() {
         onConfirm={handleDeleteMeeting}
         meetingTitle={meeting?.title || ''}
         loading={deletingMeeting}
+      />
+
+      {/* Reminder Scheduling Modal */}
+      <ReminderModal
+        isOpen={reminderModalOpen}
+        onClose={() => setReminderModalOpen(false)}
+        referenceType="meeting"
+        referenceId={meeting?.id}
+        title={meeting?.title}
+        startDatetime={meeting?.start_datetime}
+        onReminderChanged={fetchMeetingReminders}
       />
     </div>
   );

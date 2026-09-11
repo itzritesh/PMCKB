@@ -12,6 +12,8 @@ const TeamModel = require('./team.model');
 const TeamMemberModel = require('./teamMember.model');
 const TeamInvitationModel = require('./teamInvitation.model');
 const AnnouncementModel = require('./announcement.model');
+const ReminderModel = require('./reminder.model');
+const NotificationModel = require('./notification.model');
 
 module.exports = {
   UserModel,
@@ -28,4 +30,6 @@ module.exports = {
   TeamMemberModel,
   TeamInvitationModel,
   AnnouncementModel,
+  ReminderModel,
+  NotificationModel,
 };
