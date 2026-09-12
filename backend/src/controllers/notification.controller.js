@@ -1,7 +1,78 @@
 const { NotificationModel } = require('../models');
 const { sendSuccess, sendError } = require('../utils/response');
+const { emitToUser } = require('../config/socket');
+const { query } = require('../config/db');
 
 const NotificationController = {
+  /**
+   * Safe development test endpoint to emit a real-time notification
+   * POST /api/notifications/test
+   */
+  async sendTestNotification(req, res, next) {
+    try {
+      if (process.env.NODE_ENV === 'production') {
+        return sendError(res, 'Test endpoint is only available in development.', 403);
+      }
+
+      const { reference_type = 'calendar_event', title, message, reference_id = 1 } = req.body;
+
+      // Find user's active team or primary membership
+      let targetTeamId = req.teamId;
+      if (!targetTeamId) {
+        const primaryRes = await query(
+          'SELECT team_id FROM team_members WHERE user_id = $1 ORDER BY team_id ASC LIMIT 1',
+          [req.user.id]
+        );
+        targetTeamId = primaryRes.rows[0]?.team_id || 1;
+      }
+
+      const notifTitle =
+        title || (reference_type === 'meeting' ? 'Meeting Reminder' : 'Calendar Reminder');
+      const notifMessage =
+        message ||
+        (reference_type === 'meeting'
+          ? '"Weekly Project Review" starts in 15 minutes.'
+          : '"Project Planning" starts in 10 minutes.');
+
+      const notif = await NotificationModel.create({
+        userId: req.user.id,
+        teamId: targetTeamId,
+        type: 'reminder',
+        title: notifTitle,
+        message: notifMessage,
+        referenceType: reference_type,
+        referenceId: parseInt(reference_id, 10) || 1,
+      });
+
+      emitToUser(req.user.id, 'notification:new', notif);
+
+      return sendSuccess(
+        res,
+        { notification: notif },
+        'Test reminder notification dispatched successfully.'
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * Trigger reminder processing cycle (dev/test only)
+   * POST /api/notifications/trigger-reminders
+   */
+  async triggerReminderCycle(req, res, next) {
+    try {
+      if (process.env.NODE_ENV === 'production') {
+        return sendError(res, 'Test endpoint is only available in development.', 403);
+      }
+      const { checkAndTriggerReminders } = require('../services/reminderProcessor');
+      const result = await checkAndTriggerReminders();
+      return sendSuccess(res, result, 'Reminder processor executed.');
+    } catch (error) {
+      next(error);
+    }
+  },
+
   /**
    * List notifications for authenticated user
    * GET /api/notifications

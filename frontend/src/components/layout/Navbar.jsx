@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Link, NavLink, useLocation } from 'react-router-dom';
+import { Link, NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
   Layers,
   User,
@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useTeam } from '../../context/TeamContext';
-import { notificationService } from '../../services/notificationService';
+import { useNotification } from '../../context/NotificationContext';
 
 // Primary 4 modules shown on medium screens (1024px - 1279px)
 const primaryNavLinks = [
@@ -43,39 +43,23 @@ const allNavLinks = [...primaryNavLinks, ...secondaryNavLinks];
 export default function Navbar({ onToggleSidebar }) {
   const { user, isAuthenticated, logout } = useAuth();
   const { teams, currentTeam, setCurrentTeam } = useTeam();
+  const {
+    notifications,
+    unreadCount,
+    markAsRead,
+    markAllAsRead,
+  } = useNotification();
   const location = useLocation();
+  const navigate = useNavigate();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [teamDropdownOpen, setTeamDropdownOpen] = useState(false);
   const [moreDropdownOpen, setMoreDropdownOpen] = useState(false);
   const [notifDropdownOpen, setNotifDropdownOpen] = useState(false);
 
-  // Notification state
-  const [notifications, setNotifications] = useState([]);
-  const [unreadCount, setUnreadCount] = useState(0);
-
   const teamDropdownRef = useRef(null);
   const moreDropdownRef = useRef(null);
   const notifDropdownRef = useRef(null);
-
-  // Fetch notifications
-  const fetchNotifications = async () => {
-    if (!isAuthenticated) return;
-    try {
-      const res = await notificationService.getNotifications();
-      const data = res?.data || res;
-      setNotifications(data?.notifications || []);
-      setUnreadCount(data?.unreadCount || 0);
-    } catch (err) {
-      // Silently catch background poll error
-    }
-  };
-
-  useEffect(() => {
-    fetchNotifications();
-    const interval = setInterval(fetchNotifications, 30000);
-    return () => clearInterval(interval);
-  }, [isAuthenticated, currentTeam?.id]);
 
   // Close dropdowns on route change
   useEffect(() => {
@@ -116,25 +100,19 @@ export default function Navbar({ onToggleSidebar }) {
     };
   }, []);
 
-  const handleMarkRead = async (id) => {
+  const handleNotificationClick = async (notif) => {
     try {
-      await notificationService.markAsRead(id);
-      setNotifications((prev) =>
-        prev.map((n) => (n.id === id ? { ...n, is_read: true } : n))
-      );
-      setUnreadCount((prev) => Math.max(0, prev - 1));
+      if (!notif.is_read) {
+        await markAsRead(notif.id);
+      }
     } catch (err) {
-      console.error('Failed to mark notification read:', err);
+      console.error('Failed to mark read on click:', err);
     }
-  };
-
-  const handleMarkAllRead = async () => {
-    try {
-      await notificationService.markAllAsRead();
-      setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
-      setUnreadCount(0);
-    } catch (err) {
-      console.error('Failed to mark all read:', err);
+    setNotifDropdownOpen(false);
+    if (notif.entity_type === 'meeting') {
+      navigate('/meetings');
+    } else if (notif.entity_type === 'event' || notif.entity_type === 'calendar') {
+      navigate('/calendar');
     }
   };
 
@@ -414,7 +392,7 @@ export default function Navbar({ onToggleSidebar }) {
                       </div>
                       {unreadCount > 0 && (
                         <button
-                          onClick={handleMarkAllRead}
+                          onClick={markAllAsRead}
                           className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 transition-colors cursor-pointer"
                         >
                           Mark all read
@@ -436,7 +414,7 @@ export default function Navbar({ onToggleSidebar }) {
                         notifications.map((notif) => (
                           <div
                             key={notif.id}
-                            onClick={() => !notif.is_read && handleMarkRead(notif.id)}
+                            onClick={() => handleNotificationClick(notif)}
                             className={`p-3.5 transition-colors cursor-pointer flex items-start gap-3 hover:bg-slate-50/80 ${
                               !notif.is_read ? 'bg-indigo-50/30' : 'bg-white'
                             }`}

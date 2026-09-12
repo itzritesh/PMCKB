@@ -14,6 +14,7 @@ const TeamInvitationModel = require('./teamInvitation.model');
 const AnnouncementModel = require('./announcement.model');
 const ReminderModel = require('./reminder.model');
 const NotificationModel = require('./notification.model');
+const KbArticleVersionModel = require('./kbArticleVersion.model');
 
 module.exports = {
   UserModel,
@@ -26,6 +27,7 @@ module.exports = {
   MeetingMinutesModel,
   KbCategoryModel,
   KbArticleModel,
+  KbArticleVersionModel,
   TeamModel,
   TeamMemberModel,
   TeamInvitationModel,

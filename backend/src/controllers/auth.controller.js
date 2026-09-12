@@ -13,6 +13,8 @@ const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const register = async (req, res, next) => {
   try {
     const { name, email, password } = req.body;
+    const clientOrigin = req.headers.origin || req.headers.host || 'unknown';
+    console.log(`[AUTH] Incoming registration attempt: ${email || 'unknown'} (Origin: ${clientOrigin})`);
 
     // Validate required fields
     if (!name || !email || !password) {
@@ -65,6 +67,8 @@ const register = async (req, res, next) => {
       name: newUser.name,
     });
 
+    console.log(`[AUTH] User registered successfully: id=${newUser.id}, email=${newUser.email}`);
+
     return sendSuccess(
       res,
       {
@@ -86,6 +90,8 @@ const register = async (req, res, next) => {
 const login = async (req, res, next) => {
   try {
     const { email, password } = req.body;
+    const clientOrigin = req.headers.origin || req.headers.host || 'unknown';
+    console.log(`[AUTH] Incoming login attempt: ${email || 'unknown'} (Origin: ${clientOrigin})`);
 
     // Validate input fields
     if (!email || !password) {
@@ -101,6 +107,7 @@ const login = async (req, res, next) => {
     // Compare provided password with bcrypt hash
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
+      console.warn(`[AUTH] Login failed: invalid password for ${email}`);
       return sendError(res, 'Invalid email or password.', 401);
     }
 
@@ -110,6 +117,8 @@ const login = async (req, res, next) => {
       email: user.email,
       name: user.name,
     });
+
+    console.log(`[AUTH] Login successful: user id=${user.id} (${user.email})`);
 
     // Return sanitized user details (omitting password hash)
     const userProfile = {

@@ -52,6 +52,22 @@ export const knowledgeService = {
     const res = await api.delete(`/api/kb/articles/${id}`);
     return res.data;
   },
+
+  // Version History
+  getArticleVersions: async (articleId) => {
+    const res = await api.get(`/api/kb/articles/${articleId}/versions`);
+    return res.data;
+  },
+
+  getArticleVersion: async (articleId, versionNumber) => {
+    const res = await api.get(`/api/kb/articles/${articleId}/versions/${versionNumber}`);
+    return res.data;
+  },
+
+  restoreArticleVersion: async (articleId, versionNumber, data = {}) => {
+    const res = await api.post(`/api/kb/articles/${articleId}/versions/${versionNumber}/restore`, data);
+    return res.data;
+  },
 };
 
 export default knowledgeService;

@@ -1,15 +1,24 @@
+const http = require('http');
 const app = require('./app');
 const env = require('./config/env');
 const { testDbConnection, pool } = require('./config/db');
 const { initDb } = require('./config/initDb');
 const { startReminderProcessor, stopReminderProcessor } = require('./services/reminderProcessor');
+const { initSocket } = require('./config/socket');
 
 const PORT = env.PORT || 5000;
 
-const server = app.listen(PORT, async () => {
+// Create HTTP server and attach Socket.IO
+const server = http.createServer(app);
+initSocket(server);
+
+const HOST = '0.0.0.0';
+
+server.listen(PORT, HOST, async () => {
   console.log('====================================================');
-  console.log(`🚀 PMCKB Backend API Server`);
-  console.log(`📡 Listening on: http://localhost:${PORT}`);
+  console.log(`🚀 PMCKB Backend API Server (with Socket.IO)`);
+  console.log(`📡 Local:        http://localhost:${PORT}`);
+  console.log(`🌐 Network (LAN): http://192.168.0.122:${PORT} (or active LAN IP)`);
   console.log(`🌍 Environment:  ${env.NODE_ENV}`);
   console.log(`🔗 Health Check: http://localhost:${PORT}/api/health`);
   console.log('====================================================');

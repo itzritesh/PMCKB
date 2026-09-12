@@ -11,6 +11,10 @@ router.use(authenticateJwt);
 router.get('/', verifyOptionalTeamAccess, NotificationController.list);
 router.patch('/read-all', verifyOptionalTeamAccess, NotificationController.markAllRead);
 
+// Dev test endpoint to trigger real-time toast
+router.post('/test', verifyOptionalTeamAccess, NotificationController.sendTestNotification);
+router.post('/trigger-reminders', NotificationController.triggerReminderCycle);
+
 // Single notification operations
 router.patch('/:id/read', NotificationController.markRead);
 router.delete('/:id', NotificationController.delete);

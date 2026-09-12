@@ -11,13 +11,15 @@ import {
   Loader2,
   AlertCircle,
   Share2,
-  Check
+  Check,
+  History
 } from 'lucide-react';
 import { knowledgeService } from '../services/knowledgeService';
 import { useAuth } from '../context/AuthContext';
 import { useTeam } from '../context/TeamContext';
 import ArticleModal from '../components/knowledge/ArticleModal';
 import DeleteArticleModal from '../components/knowledge/DeleteArticleModal';
+import VersionHistoryModal from '../components/knowledge/VersionHistoryModal';
 
 export default function ArticleDetailsPage() {
   const { id } = useParams();
@@ -33,6 +35,7 @@ export default function ArticleDetailsPage() {
   // Modals
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [deleteLoading, setDeleteLoading] = useState(false);
   const [copied, setCopied] = useState(false);
 
@@ -146,6 +149,15 @@ export default function ArticleDetailsPage() {
 
           <div className="flex items-center gap-2">
             <button
+              onClick={() => setIsHistoryModalOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-700 hover:text-indigo-600 hover:bg-slate-50 text-xs font-medium transition-colors cursor-pointer"
+              title="View version history and revisions"
+            >
+              <History className="w-3.5 h-3.5 text-indigo-600" />
+              <span>Version History</span>
+            </button>
+
+            <button
               onClick={handleCopyLink}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 text-slate-600 hover:text-slate-900 hover:bg-slate-50 text-xs font-medium transition-colors cursor-pointer"
               title="Copy link to clipboard"
@@ -242,6 +254,20 @@ export default function ArticleDetailsPage() {
         onConfirm={handleConfirmDelete}
         articleTitle={article?.title || ''}
         loading={deleteLoading}
+      />
+
+      {/* Version History Modal */}
+      <VersionHistoryModal
+        isOpen={isHistoryModalOpen}
+        onClose={() => setIsHistoryModalOpen(false)}
+        articleId={article?.id}
+        currentArticle={article}
+        onVersionRestored={(updatedArticle) => {
+          if (updatedArticle) {
+            setArticle(updatedArticle);
+          }
+          fetchArticleAndCategories();
+        }}
       />
     </div>
   );

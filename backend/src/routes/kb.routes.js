@@ -27,4 +27,21 @@ router.get('/articles/:id', verifyResourceTeamAccess('kb_articles', 'id'), KbArt
 router.put('/articles/:id', verifyResourceTeamAccess('kb_articles', 'id'), KbArticleController.updateArticle);
 router.delete('/articles/:id', verifyResourceTeamAccess('kb_articles', 'id'), KbArticleController.deleteArticle);
 
+// Article Version History
+router.get(
+  '/articles/:articleId/versions',
+  verifyResourceTeamAccess('kb_articles', 'articleId'),
+  KbArticleController.getArticleVersions
+);
+router.get(
+  '/articles/:articleId/versions/:versionNumber',
+  verifyResourceTeamAccess('kb_articles', 'articleId'),
+  KbArticleController.getArticleVersionByNumber
+);
+router.post(
+  '/articles/:articleId/versions/:versionNumber/restore',
+  verifyResourceTeamAccess('kb_articles', 'articleId', { requireLeader: true }),
+  KbArticleController.restoreArticleVersion
+);
+
 module.exports = router;

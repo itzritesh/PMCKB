@@ -1,4 +1,5 @@
 const { ReminderModel, NotificationModel, MeetingModel, CalendarEventModel } = require('../models');
+const { emitToUser } = require('../config/socket');
 
 let processorInterval = null;
 
@@ -62,7 +63,7 @@ async function checkAndTriggerReminders() {
         const timePhrase = formatTimeRemaining(resourceDatetime);
         const notifMessage = `"${resourceTitle}" ${timePhrase}.`;
 
-        await NotificationModel.create({
+        const createdNotif = await NotificationModel.create({
           userId: reminder.user_id,
           teamId: reminder.team_id,
           type: 'reminder',
@@ -72,8 +73,11 @@ async function checkAndTriggerReminders() {
           referenceId: reminder.reference_id,
         });
 
+        // Emit real-time notification to the user via Socket.IO
+        emitToUser(reminder.user_id, 'notification:new', createdNotif);
+
         console.log(
-          `🔔 [ReminderProcessor] Notification created for user ${reminder.user_id}: "${notifTitle} - ${notifMessage}"`
+          `🔔 [ReminderProcessor] Notification created & emitted for user ${reminder.user_id}: "${notifTitle} - ${notifMessage}"`
         );
       } catch (innerErr) {
         console.error(

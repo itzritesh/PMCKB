@@ -206,6 +206,26 @@ async function initDb() {
     CREATE INDEX IF NOT EXISTS idx_kb_articles_author_id ON kb_articles(author_id);
     CREATE INDEX IF NOT EXISTS idx_kb_articles_team_id ON kb_articles(team_id);
 
+    -- Knowledge Base Article Versions Table (Version History)
+    CREATE TABLE IF NOT EXISTS kb_article_versions (
+      id SERIAL PRIMARY KEY,
+      article_id INTEGER NOT NULL REFERENCES kb_articles(id) ON DELETE CASCADE,
+      team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+      version_number INTEGER NOT NULL CHECK (version_number >= 1),
+      title VARCHAR(255) NOT NULL,
+      content TEXT NOT NULL,
+      category_id INTEGER REFERENCES kb_categories(id) ON DELETE SET NULL,
+      status VARCHAR(50) NOT NULL DEFAULT 'draft',
+      created_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      change_summary TEXT,
+      CONSTRAINT kb_article_versions_unique UNIQUE(article_id, version_number)
+    );
+    CREATE INDEX IF NOT EXISTS idx_kb_article_versions_article_id ON kb_article_versions(article_id);
+    CREATE INDEX IF NOT EXISTS idx_kb_article_versions_team_id ON kb_article_versions(team_id);
+    CREATE INDEX IF NOT EXISTS idx_kb_article_versions_created_at ON kb_article_versions(created_at);
+    CREATE INDEX IF NOT EXISTS idx_kb_article_versions_version_number ON kb_article_versions(version_number);
+
     -- Reminders Table (Calendar & Meeting Reminder System)
     CREATE TABLE IF NOT EXISTS reminders (
       id SERIAL PRIMARY KEY,

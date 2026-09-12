@@ -18,6 +18,7 @@ import {
   Activity,
 } from 'lucide-react';
 import { healthService } from '../services/healthService';
+import { API_URL } from '../services/api';
 import StatusBadge from '../components/common/StatusBadge';
 
 export default function SystemStatusPage({ onStatusUpdate }) {
@@ -147,7 +148,7 @@ export default function SystemStatusPage({ onStatusUpdate }) {
                 <span>{loading ? 'Testing System...' : 'Ping Backend & Database'}</span>
               </button>
               <a
-                href={`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000'}/api/health`}
+                href={`${API_URL}/api/health`}
                 target="_blank"
                 rel="noreferrer"
                 className="inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 text-sm font-medium border border-slate-200 transition-colors shadow-2xs"
@@ -180,7 +181,7 @@ export default function SystemStatusPage({ onStatusUpdate }) {
             <div className="space-y-2 text-xs border-t border-slate-100 pt-3">
               <div className="flex justify-between text-slate-600">
                 <span>Base URL:</span>
-                <span className="font-mono text-slate-800">http://localhost:5000</span>
+                <span className="font-mono text-slate-800">{API_URL}</span>
               </div>
               <div className="flex justify-between text-slate-600">
                 <span>Health Endpoint:</span>
@@ -294,7 +295,7 @@ export default function SystemStatusPage({ onStatusUpdate }) {
             <div className="space-y-1 text-sm">
               <h4 className="font-semibold text-rose-700">Backend Server Not Responding</h4>
               <p className="text-rose-600 text-xs leading-relaxed">
-                The frontend is running independently, but the backend at <code className="bg-rose-100 px-1.5 py-0.5 rounded text-rose-800">http://localhost:5000</code> is currently unreachable.
+                The frontend is running independently, but the backend at <code className="bg-rose-100 px-1.5 py-0.5 rounded text-rose-800">{API_URL}</code> is currently unreachable.
                 Start the backend in another terminal window with:
               </p>
               <div className="pt-2">

@@ -11,7 +11,7 @@ export const AuthProvider = ({ children }) => {
   // Initialize and verify stored token on mount
   useEffect(() => {
     const initializeAuth = async () => {
-      const storedToken = localStorage.getItem('auth_token');
+      const storedToken = localStorage.getItem('auth_token') || localStorage.getItem('token');
       if (!storedToken) {
         setLoading(false);
         return;
@@ -24,6 +24,7 @@ export const AuthProvider = ({ children }) => {
       } catch (err) {
         console.warn('Stored session invalid or expired, resetting auth.');
         localStorage.removeItem('auth_token');
+        localStorage.removeItem('token');
         setUser(null);
         setToken(null);
       } finally {
@@ -42,6 +43,7 @@ export const AuthProvider = ({ children }) => {
     const { user: authUser, token: authToken } = res.data;
 
     localStorage.setItem('auth_token', authToken);
+    localStorage.setItem('token', authToken);
     setToken(authToken);
     setUser(authUser);
     return res;
@@ -55,6 +57,7 @@ export const AuthProvider = ({ children }) => {
     const { user: authUser, token: authToken } = res.data;
 
     localStorage.setItem('auth_token', authToken);
+    localStorage.setItem('token', authToken);
     setToken(authToken);
     setUser(authUser);
     return res;
@@ -65,6 +68,7 @@ export const AuthProvider = ({ children }) => {
    */
   const logout = () => {
     localStorage.removeItem('auth_token');
+    localStorage.removeItem('token');
     setToken(null);
     setUser(null);
   };
