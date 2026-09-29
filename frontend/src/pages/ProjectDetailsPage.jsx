@@ -17,7 +17,7 @@ import {
 } from 'lucide-react';
 import { projectService } from '../services/projectService';
 import { taskService } from '../services/taskService';
-import { userService } from '../services/userService';
+import { teamService } from '../services/teamService';
 import { useAuth } from '../context/AuthContext';
 import { useTeam } from '../context/TeamContext';
 import StatusPill from '../components/projects/StatusPill';
@@ -40,7 +40,7 @@ export default function ProjectDetailsPage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { isLeader } = useTeam();
+  const { currentTeam, isLeader } = useTeam();
 
   // Project states
   const [project, setProject] = useState(null);
@@ -76,7 +76,27 @@ export default function ProjectDetailsPage() {
     setError(null);
     try {
       const res = await projectService.getProject(id);
-      setProject(res.data.project);
+      const proj = res.data.project;
+      setProject(proj);
+
+      const targetTeamId = proj?.team_id || currentTeam?.id;
+      if (targetTeamId) {
+        try {
+          const memRes = await teamService.getTeamMembers(targetTeamId);
+          const members = memRes.data?.members || [];
+          setUsers(
+            members.map((m) => ({
+              id: m.id ?? m.user_id,
+              user_id: m.user_id ?? m.id,
+              name: m.name || m.user_name || m.email,
+              email: m.email || '',
+              role: m.role || 'member',
+            }))
+          );
+        } catch (e) {
+          console.warn('Failed to load project team members:', e);
+        }
+      }
     } catch (err) {
       setError(err.message || 'Project not found or access denied.');
     } finally {
@@ -97,20 +117,10 @@ export default function ProjectDetailsPage() {
     }
   };
 
-  const fetchUsers = async () => {
-    try {
-      const res = await userService.getUsers();
-      setUsers(res.data.users || []);
-    } catch (err) {
-      console.warn('Failed to load registered users:', err);
-    }
-  };
-
   useEffect(() => {
     fetchProjectData();
     fetchProjectTasks();
-    fetchUsers();
-  }, [id]);
+  }, [id, currentTeam?.id]);
 
   const handleUpdateProject = async (formData) => {
     setSubmittingProject(true);
@@ -170,7 +180,12 @@ export default function ProjectDetailsPage() {
   };
 
   const handleQuickStatusChange = async (task, nextStatus) => {
-    if (!isLeader && String(task.assigned_to) !== String(user?.id)) {
+    const isAssigned =
+      isLeader ||
+      (task.assignees && task.assignees.some((a) => String(a.id || a.user_id) === String(user?.id))) ||
+      String(task.assigned_to) === String(user?.id);
+
+    if (!isAssigned) {
       alert('Access denied. Members can only update the status of tasks assigned to them.');
       return;
     }

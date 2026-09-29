@@ -5,6 +5,7 @@ const { testDbConnection, pool } = require('./config/db');
 const { initDb } = require('./config/initDb');
 const { startReminderProcessor, stopReminderProcessor } = require('./services/reminderProcessor');
 const { initSocket } = require('./config/socket');
+const emailService = require('./services/emailService');
 
 const PORT = env.PORT || 5000;
 
@@ -35,6 +36,10 @@ server.listen(PORT, HOST, async () => {
     }
     // Start background reminder processor
     startReminderProcessor(30000);
+
+    // Verify email service configuration (Gmail SMTP)
+    console.log('Verifying email invitation service...');
+    await emailService.verifyConfiguration();
   } else {
     console.log(`⚠️  PostgreSQL warning: ${dbStatus.message}`);
     console.log(`   Detail: ${dbStatus.error}`);

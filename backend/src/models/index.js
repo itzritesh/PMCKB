@@ -1,6 +1,7 @@
 const UserModel = require('./user.model');
 const ProjectModel = require('./project.model');
 const TaskModel = require('./task.model');
+const TaskAssigneeModel = require('./taskAssignee.model');
 const CommentModel = require('./comment.model');
 const CalendarEventModel = require('./calendarEvent.model');
 const MeetingModel = require('./meeting.model');
@@ -15,11 +16,13 @@ const AnnouncementModel = require('./announcement.model');
 const ReminderModel = require('./reminder.model');
 const NotificationModel = require('./notification.model');
 const KbArticleVersionModel = require('./kbArticleVersion.model');
+const PushSubscriptionModel = require('./pushSubscription.model');
 
 module.exports = {
   UserModel,
   ProjectModel,
   TaskModel,
+  TaskAssigneeModel,
   CommentModel,
   CalendarEventModel,
   MeetingModel,
@@ -34,4 +37,5 @@ module.exports = {
   AnnouncementModel,
   ReminderModel,
   NotificationModel,
+  PushSubscriptionModel,
 };

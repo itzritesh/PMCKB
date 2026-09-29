@@ -185,7 +185,7 @@ const MeetingController = {
       // Ensure attendee is a member of the meeting's workspace (Cross-team defense)
       const membership = await TeamMemberModel.findByTeamAndUser(req.resource.team_id, targetUserId);
       if (!membership) {
-        return sendError(res, 'Target attendee must belong to the same team as the meeting. Cross-team attendees are not allowed.', 400);
+        return sendError(res, 'Target attendee must belong to the same team as the meeting. Cross-team attendees are not allowed.', 403);
       }
 
       const validStatuses = ['pending', 'accepted', 'declined'];

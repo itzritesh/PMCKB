@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Megaphone,
   Plus,
@@ -22,6 +23,8 @@ import { announcementService } from '../services/announcementService';
 export default function AnnouncementsPage() {
   const { user } = useAuth();
   const { currentTeam, isLeader } = useTeam();
+  const [searchParams] = useSearchParams();
+  const targetAnnouncementId = searchParams.get('id');
 
   const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -61,6 +64,19 @@ export default function AnnouncementsPage() {
   useEffect(() => {
     loadAnnouncements();
   }, [loadAnnouncements]);
+
+  // Smooth scroll to targeted announcement from notification deep link (?id=...)
+  useEffect(() => {
+    if (targetAnnouncementId && !loading && announcements.length > 0) {
+      const timer = setTimeout(() => {
+        const el = document.getElementById(`announcement-${targetAnnouncementId}`);
+        if (el) {
+          el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [targetAnnouncementId, loading, announcements]);
 
   const handleCreateAnnouncement = async (e) => {
     e.preventDefault();
@@ -271,11 +287,18 @@ export default function AnnouncementsPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          {filteredAnnouncements.map((item) => (
-            <div
-              key={item.id}
-              className="bg-white border border-slate-200/90 rounded-3xl p-6 sm:p-7 shadow-2xs hover:shadow-xs transition-all space-y-4 relative group"
-            >
+          {filteredAnnouncements.map((item) => {
+            const isTargeted = String(item.id) === targetAnnouncementId;
+            return (
+              <div
+                key={item.id}
+                id={`announcement-${item.id}`}
+                className={`bg-white border rounded-3xl p-6 sm:p-7 shadow-2xs hover:shadow-xs transition-all space-y-4 relative group ${
+                  isTargeted
+                    ? 'ring-2 ring-indigo-500 border-indigo-400 bg-indigo-50/15'
+                    : 'border-slate-200/90'
+                }`}
+              >
               {/* Card Header: Title & Actions */}
               <div className="flex items-start justify-between gap-4">
                 <div className="space-y-1">
@@ -349,7 +372,7 @@ export default function AnnouncementsPage() {
                 </div>
               </div>
             </div>
-          ))}
+          ); })}
         </div>
       )}
 

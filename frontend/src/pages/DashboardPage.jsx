@@ -136,7 +136,7 @@ export default function DashboardPage() {
       setArticles(articlesRes.data?.articles || []);
       setAnnouncements(announcementsRes.data?.announcements || []);
 
-      // Load team members
+      // Load team members strictly for current workspace
       if (currentTeam?.id) {
         try {
           const memRes = await teamService.getTeamMembers(currentTeam.id);
@@ -144,19 +144,20 @@ export default function DashboardPage() {
           setMembers(teamMembers);
           setUsers(
             teamMembers.map((m) => ({
-              id: m.user_id,
-              name: m.name,
-              email: m.email,
-              role: m.role,
+              id: m.id ?? m.user_id,
+              user_id: m.user_id ?? m.id,
+              name: m.name || m.user_name || m.email,
+              email: m.email || '',
+              role: m.role || 'member',
             }))
           );
         } catch {
-          const usersRes = await userService.getUsers().catch(() => ({ data: { users: [] } }));
-          setUsers(usersRes.data?.users || []);
+          setMembers([]);
+          setUsers([]);
         }
       } else {
-        const usersRes = await userService.getUsers().catch(() => ({ data: { users: [] } }));
-        setUsers(usersRes.data?.users || []);
+        setMembers([]);
+        setUsers([]);
       }
     } catch (err) {
       console.warn('Failed to load dashboard data:', err);

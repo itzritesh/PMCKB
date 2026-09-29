@@ -1,5 +1,6 @@
 const { ReminderModel, NotificationModel, MeetingModel, CalendarEventModel } = require('../models');
 const { emitToUser } = require('../config/socket');
+const WebPushService = require('./webPushService');
 
 let processorInterval = null;
 
@@ -63,21 +64,44 @@ async function checkAndTriggerReminders() {
         const timePhrase = formatTimeRemaining(resourceDatetime);
         const notifMessage = `"${resourceTitle}" ${timePhrase}.`;
 
-        const createdNotif = await NotificationModel.create({
-          userId: reminder.user_id,
-          teamId: reminder.team_id,
-          type: 'reminder',
-          title: notifTitle,
-          message: notifMessage,
-          referenceType: reminder.reference_type,
-          referenceId: reminder.reference_id,
-        });
+        // Database-level check: ensure exactly one notification per reminder
+        const existingNotif = await NotificationModel.findByReminderId(reminder.id);
+        if (existingNotif) {
+          console.log(`ℹ️ [ReminderProcessor] Notification already exists for reminder ${reminder.id}, skipping duplicate.`);
+          continue;
+        }
 
-        // Emit real-time notification to the user via Socket.IO
+        let createdNotif;
+        try {
+          createdNotif = await NotificationModel.create({
+            userId: reminder.user_id,
+            teamId: reminder.team_id,
+            type: 'reminder',
+            title: notifTitle,
+            message: notifMessage,
+            referenceType: reminder.reference_type,
+            referenceId: reminder.reference_id,
+            reminderId: reminder.id,
+            isDismissed: false,
+          });
+        } catch (dbErr) {
+          if (dbErr.code === '23505') {
+            console.log(`ℹ️ [ReminderProcessor] Unique constraint caught duplicate notification for reminder ${reminder.id}`);
+            continue;
+          }
+          throw dbErr;
+        }
+
+        // 1. Emit real-time notification to the user via Socket.IO (for active in-app toast)
         emitToUser(reminder.user_id, 'notification:new', createdNotif);
 
+        // 2. Dispatch Web Push notification to user's registered devices (for background/closed-tab alerts)
+        WebPushService.sendPushToUser(reminder.user_id, createdNotif).catch((pushErr) => {
+          console.warn(`⚠️ [ReminderProcessor] Background push delivery warning:`, pushErr.message);
+        });
+
         console.log(
-          `🔔 [ReminderProcessor] Notification created & emitted for user ${reminder.user_id}: "${notifTitle} - ${notifMessage}"`
+          `🔔 [ReminderProcessor] Notification #${createdNotif.id} created & dispatched for user ${reminder.user_id}: "${notifTitle} - ${notifMessage}"`
         );
       } catch (innerErr) {
         console.error(

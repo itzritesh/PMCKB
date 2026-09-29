@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import { X, Calendar as CalendarIcon, Edit3, Loader2, AlertCircle, MapPin } from 'lucide-react';
+import { X, Calendar as CalendarIcon, Edit3, Loader2, AlertCircle, MapPin, Link2 } from 'lucide-react';
+import { isValidUrl } from '../../utils/urlHelper';
 
 export default function EventModal({
   isOpen,
@@ -173,17 +174,21 @@ export default function EventModal({
 
           <div>
             <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              Location / Video Link <span className="text-slate-400 font-normal">(optional)</span>
+              Location / Event Link <span className="text-slate-400 font-normal">(optional)</span>
             </label>
             <div className="relative">
               <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-400">
-                <MapPin className="w-4 h-4" />
+                {isValidUrl(location) ? (
+                  <Link2 className="w-4 h-4 text-indigo-600" />
+                ) : (
+                  <MapPin className="w-4 h-4" />
+                )}
               </div>
               <input
                 type="text"
                 value={location}
                 onChange={(e) => setLocation(e.target.value)}
-                placeholder="e.g. Conference Room A or https://meet.google.com/xyz"
+                placeholder="https://meet.google.com/... or Conference Room 2"
                 className="w-full pl-10 pr-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-sm text-slate-900 placeholder-slate-400 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors"
               />
             </div>

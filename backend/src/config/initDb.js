@@ -1,5 +1,8 @@
 const { query, pool } = require('./db');
 const { runMigration } = require('./migrations/001_teams_migration');
+const { runMigration: runPushMigration } = require('./migrations/003_push_subscriptions');
+const { runMigration: runEmailMigration } = require('./migrations/004_invitations_email_delivery');
+const { runMigration: runTaskAssigneesMigration } = require('./migrations/005_task_assignees');
 
 /**
  * Initializes database schemas and creates required tables if they don't exist.
@@ -48,13 +51,18 @@ async function initDb() {
       email VARCHAR(255) NOT NULL,
       invited_by INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
       token VARCHAR(255) UNIQUE NOT NULL,
-      status VARCHAR(50) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'rejected', 'expired')),
+      status VARCHAR(50) NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'rejected', 'expired', 'cancelled')),
+      email_status VARCHAR(50) DEFAULT 'pending',
+      email_sent_at TIMESTAMP WITH TIME ZONE,
+      last_email_error TEXT,
       expires_at TIMESTAMP WITH TIME ZONE NOT NULL,
-      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
     );
     CREATE INDEX IF NOT EXISTS idx_team_invitations_token ON team_invitations(token);
     CREATE INDEX IF NOT EXISTS idx_team_invitations_team_id ON team_invitations(team_id);
     CREATE INDEX IF NOT EXISTS idx_team_invitations_email ON team_invitations(email);
+    CREATE INDEX IF NOT EXISTS idx_team_invitations_email_status ON team_invitations(email_status);
 
     -- Announcements Table
     CREATE TABLE IF NOT EXISTS announcements (
@@ -100,6 +108,18 @@ async function initDb() {
     CREATE INDEX IF NOT EXISTS idx_tasks_project_id ON tasks(project_id);
     CREATE INDEX IF NOT EXISTS idx_tasks_assigned_to ON tasks(assigned_to);
     CREATE INDEX IF NOT EXISTS idx_tasks_team_id ON tasks(team_id);
+
+    -- Task Assignees Table (Multi-Assignee Support)
+    CREATE TABLE IF NOT EXISTS task_assignees (
+      id SERIAL PRIMARY KEY,
+      task_id INTEGER NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      assigned_by INTEGER REFERENCES users(id) ON DELETE SET NULL,
+      assigned_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      UNIQUE (task_id, user_id)
+    );
+    CREATE INDEX IF NOT EXISTS idx_task_assignees_task_id ON task_assignees(task_id);
+    CREATE INDEX IF NOT EXISTS idx_task_assignees_user_id ON task_assignees(user_id);
 
     -- Task Comments Table (Phase 6)
     CREATE TABLE IF NOT EXISTS task_comments (
@@ -258,12 +278,32 @@ async function initDb() {
       reference_type VARCHAR(50),
       reference_id INTEGER,
       is_read BOOLEAN NOT NULL DEFAULT FALSE,
+      is_dismissed BOOLEAN NOT NULL DEFAULT FALSE,
+      reminder_id INTEGER REFERENCES reminders(id) ON DELETE SET NULL,
       created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
     );
     CREATE INDEX IF NOT EXISTS idx_notifications_user_id ON notifications(user_id);
     CREATE INDEX IF NOT EXISTS idx_notifications_team_id ON notifications(team_id);
     CREATE INDEX IF NOT EXISTS idx_notifications_is_read ON notifications(is_read);
+    CREATE INDEX IF NOT EXISTS idx_notifications_is_dismissed ON notifications(is_dismissed);
+    CREATE INDEX IF NOT EXISTS idx_notifications_reminder_id ON notifications(reminder_id);
     CREATE INDEX IF NOT EXISTS idx_notifications_created_at ON notifications(created_at);
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_notifications_unique_reminder ON notifications(reminder_id) WHERE reminder_id IS NOT NULL;
+    CREATE UNIQUE INDEX IF NOT EXISTS idx_notifications_unique_ref ON notifications(user_id, reference_type, reference_id, type) WHERE reference_id IS NOT NULL;
+
+
+    -- Push Subscriptions Table (Web Push for Desktop/Mobile)
+    CREATE TABLE IF NOT EXISTS push_subscriptions (
+      id SERIAL PRIMARY KEY,
+      user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+      endpoint TEXT UNIQUE NOT NULL,
+      p256dh TEXT NOT NULL,
+      auth TEXT NOT NULL,
+      created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+      updated_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+    );
+    CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user_id ON push_subscriptions(user_id);
+    CREATE INDEX IF NOT EXISTS idx_push_subscriptions_endpoint ON push_subscriptions(endpoint);
   `;
 
   try {
@@ -273,6 +313,9 @@ async function initDb() {
     // Execute safe migration to alter columns (for existing databases) and backfill records
     console.log('Running safe migration and data backfill check...');
     await runMigration();
+    await runPushMigration();
+    await runEmailMigration();
+    await runTaskAssigneesMigration();
 
     return { success: true };
   } catch (error) {

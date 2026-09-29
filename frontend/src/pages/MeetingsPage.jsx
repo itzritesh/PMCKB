@@ -13,12 +13,14 @@ import {
   ArrowUpRight,
   CheckCircle2,
   XCircle,
+  Link2,
 } from 'lucide-react';
 import { meetingService } from '../services/meetingService';
 import { useAuth } from '../context/AuthContext';
 import { useTeam } from '../context/TeamContext';
 import MeetingModal from '../components/meetings/MeetingModal';
 import DeleteMeetingModal from '../components/meetings/DeleteMeetingModal';
+import LocationDisplay, { isPureUrl } from '../components/common/LocationDisplay';
 
 const STATUS_FILTERS = [
   { key: 'all', label: 'All Meetings' },
@@ -345,11 +347,19 @@ export default function MeetingsPage() {
                       </span>
                     </div>
 
-                    <div className="flex items-center justify-between text-slate-400">
+                    <div className="flex items-center justify-between text-slate-400 gap-2">
                       {m.location ? (
-                        <div className="flex items-center gap-1 truncate max-w-[200px]">
-                          <MapPin className="w-3.5 h-3.5 shrink-0 text-slate-400" />
-                          <span className="truncate">{m.location}</span>
+                        <div className="flex items-center gap-1.5 min-w-0 max-w-[220px]">
+                          {isPureUrl(m.location) ? (
+                            <Link2 className="w-3.5 h-3.5 shrink-0 text-purple-600" />
+                          ) : (
+                            <MapPin className="w-3.5 h-3.5 shrink-0 text-slate-400" />
+                          )}
+                          <LocationDisplay
+                            location={m.location}
+                            compact={true}
+                            linkClassName="text-purple-600 hover:text-purple-800"
+                          />
                         </div>
                       ) : (
                         <span>No location set</span>

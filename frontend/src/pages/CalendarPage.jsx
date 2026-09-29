@@ -13,6 +13,7 @@ import {
   CheckSquare,
   ArrowUpRight,
   Bell,
+  Link2,
 } from 'lucide-react';
 import { calendarService } from '../services/calendarService';
 import { taskService } from '../services/taskService';
@@ -22,6 +23,7 @@ import DeleteEventModal from '../components/calendar/DeleteEventModal';
 import ReminderModal from '../components/reminders/ReminderModal';
 import PriorityBadge from '../components/tasks/PriorityBadge';
 import TaskStatusPill from '../components/tasks/TaskStatusPill';
+import LocationDisplay, { isPureUrl } from '../components/common/LocationDisplay';
 import { useTeam } from '../context/TeamContext';
 
 export default function CalendarPage() {
@@ -445,9 +447,17 @@ export default function CalendarPage() {
                     </div>
 
                     {item.location && (
-                      <div className="flex items-center gap-1.5 text-slate-500 truncate">
-                        <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
-                        <span className="truncate">{item.location}</span>
+                      <div className="flex items-center gap-1.5 text-slate-500 min-w-0">
+                        {isPureUrl(item.location) ? (
+                          <Link2 className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                        ) : (
+                          <MapPin className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                        )}
+                        <LocationDisplay
+                          location={item.location}
+                          compact={true}
+                          linkClassName="text-indigo-600 hover:text-indigo-800"
+                        />
                       </div>
                     )}
 

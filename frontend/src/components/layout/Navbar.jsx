@@ -18,6 +18,8 @@ import {
   ChevronDown,
   Check,
   Bell,
+  Trash2,
+  ExternalLink,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useTeam } from '../../context/TeamContext';
@@ -48,6 +50,13 @@ export default function Navbar({ onToggleSidebar }) {
     unreadCount,
     markAsRead,
     markAllAsRead,
+    viewNotification,
+    deleteNotification,
+    pushSupported,
+    pushSubscribed,
+    pushPermission,
+    enableDesktopNotifications,
+    disableDesktopNotifications,
   } = useNotification();
   const location = useLocation();
   const navigate = useNavigate();
@@ -102,16 +111,23 @@ export default function Navbar({ onToggleSidebar }) {
 
   const handleNotificationClick = async (notif) => {
     try {
-      if (!notif.is_read) {
-        await markAsRead(notif.id);
-      }
+      await viewNotification(notif);
     } catch (err) {
-      console.error('Failed to mark read on click:', err);
+      console.error('Failed to view notification on click:', err);
     }
     setNotifDropdownOpen(false);
-    if (notif.entity_type === 'meeting') {
+    if (notif.type === 'team_announcement' || notif.reference_type === 'announcement') {
+      navigate('/announcements');
+    } else if (notif.reference_type === 'meeting' && notif.reference_id) {
+      navigate(`/meetings/${notif.reference_id}`);
+    } else if (notif.reference_type === 'meeting' || notif.entity_type === 'meeting') {
       navigate('/meetings');
-    } else if (notif.entity_type === 'event' || notif.entity_type === 'calendar') {
+    } else if (
+      notif.reference_type === 'calendar_event' ||
+      notif.reference_type === 'event' ||
+      notif.entity_type === 'event' ||
+      notif.entity_type === 'calendar'
+    ) {
       navigate('/calendar');
     }
   };
@@ -400,6 +416,51 @@ export default function Navbar({ onToggleSidebar }) {
                       )}
                     </div>
 
+                    {/* Desktop Push Notifications Settings Banner */}
+                    <div className="px-3.5 py-2.5 bg-slate-50/80 border-b border-slate-100 flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 min-w-0">
+                        <span className="text-[11px] font-medium text-slate-700 shrink-0">
+                          Desktop alerts:
+                        </span>
+                        {pushPermission === 'granted' && pushSubscribed ? (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200 shrink-0">
+                            Active
+                          </span>
+                        ) : pushPermission === 'denied' ? (
+                          <span className="text-[10px] text-amber-700 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200 truncate">
+                            Blocked in browser
+                          </span>
+                        ) : !pushSupported ? (
+                          <span className="text-[10px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+                            In-app only
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded-md border border-slate-200">
+                            Disabled
+                          </span>
+                        )}
+                      </div>
+
+                      {pushSupported && pushPermission !== 'denied' && (
+                        <button
+                          onClick={async () => {
+                            if (pushSubscribed) {
+                              await disableDesktopNotifications();
+                            } else {
+                              await enableDesktopNotifications();
+                            }
+                          }}
+                          className={`px-2.5 py-1 text-[10px] font-semibold rounded-lg transition-colors cursor-pointer border ${
+                            pushSubscribed
+                              ? 'text-slate-600 hover:text-rose-600 hover:bg-rose-50 border-slate-200 bg-white'
+                              : 'bg-indigo-600 hover:bg-indigo-700 text-white border-transparent shadow-2xs'
+                          }`}
+                        >
+                          {pushSubscribed ? 'Turn Off' : 'Enable Alerts'}
+                        </button>
+                      )}
+                    </div>
+
                     {/* Dropdown List */}
                     <div className="max-h-80 overflow-y-auto divide-y divide-slate-100">
                       {notifications.length === 0 ? (
@@ -414,8 +475,7 @@ export default function Navbar({ onToggleSidebar }) {
                         notifications.map((notif) => (
                           <div
                             key={notif.id}
-                            onClick={() => handleNotificationClick(notif)}
-                            className={`p-3.5 transition-colors cursor-pointer flex items-start gap-3 hover:bg-slate-50/80 ${
+                            className={`p-3.5 transition-colors flex items-start gap-3 hover:bg-slate-50/80 group ${
                               !notif.is_read ? 'bg-indigo-50/30' : 'bg-white'
                             }`}
                           >
@@ -424,7 +484,10 @@ export default function Navbar({ onToggleSidebar }) {
                                 !notif.is_read ? 'bg-indigo-600' : 'bg-transparent'
                               }`}
                             />
-                            <div className="min-w-0 flex-1">
+                            <div
+                              className="min-w-0 flex-1 cursor-pointer"
+                              onClick={() => handleNotificationClick(notif)}
+                            >
                               <div className="flex items-center justify-between gap-1">
                                 <h4 className="text-xs font-bold text-slate-900 truncate">
                                   {notif.title}
@@ -439,6 +502,43 @@ export default function Navbar({ onToggleSidebar }) {
                               <p className="text-xs text-slate-600 mt-0.5 leading-relaxed">
                                 {notif.message}
                               </p>
+
+                              {/* Per-item action buttons */}
+                              <div className="mt-2 flex items-center justify-between pt-1 border-t border-slate-100/80">
+                                <span className="text-[10px] text-slate-400 font-medium">
+                                  {notif.type === 'team_announcement' || notif.reference_type === 'announcement'
+                                    ? 'Announcement'
+                                    : notif.reference_type === 'meeting'
+                                    ? 'Meeting'
+                                    : notif.reference_type === 'calendar_event'
+                                    ? 'Calendar'
+                                    : 'Alert'}
+                                </span>
+                                <div className="flex items-center gap-2">
+                                  {!notif.is_read && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        markAsRead(notif.id);
+                                      }}
+                                      title="Mark as read"
+                                      className="text-[10px] text-indigo-600 hover:text-indigo-800 font-semibold cursor-pointer"
+                                    >
+                                      Mark read
+                                    </button>
+                                  )}
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      deleteNotification(notif.id);
+                                    }}
+                                    title="Delete from history"
+                                    className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
+                                  >
+                                    <Trash2 className="w-3 h-3" />
+                                  </button>
+                                </div>
+                              </div>
                             </div>
                           </div>
                         ))

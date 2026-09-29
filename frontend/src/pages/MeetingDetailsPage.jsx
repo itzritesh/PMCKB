@@ -20,6 +20,7 @@ import {
   X,
   HelpCircle,
   Bell,
+  Link2,
 } from 'lucide-react';
 import { meetingService } from '../services/meetingService';
 import { teamService } from '../services/teamService';
@@ -29,6 +30,8 @@ import { useTeam } from '../context/TeamContext';
 import MeetingModal from '../components/meetings/MeetingModal';
 import DeleteMeetingModal from '../components/meetings/DeleteMeetingModal';
 import ReminderModal from '../components/reminders/ReminderModal';
+import LocationDisplay, { isPureUrl } from '../components/common/LocationDisplay';
+import TeamMemberSelect, { getUserDisplayName } from '../components/common/TeamMemberSelect';
 
 export default function MeetingDetailsPage() {
   const { id } = useParams();
@@ -89,7 +92,16 @@ export default function MeetingDetailsPage() {
       if (teamIdToFetch) {
         const resMembers = await teamService.getTeamMembers(teamIdToFetch).catch(() => ({ data: { members: [] } }));
         const mList = resMembers?.data?.members || resMembers?.members || [];
-        setAllUsers(Array.isArray(mList) ? mList.map((tm) => ({ id: tm.user_id, name: tm.user_name, email: tm.user_email })) : []);
+        setAllUsers(
+          Array.isArray(mList)
+            ? mList.map((tm) => ({
+                id: tm.id ?? tm.user_id,
+                user_id: tm.user_id ?? tm.id,
+                name: getUserDisplayName(tm),
+                email: tm.email || tm.user_email || '',
+              }))
+            : []
+        );
       }
     } catch (err) {
       setError(err.message || 'Failed to load meeting.');
@@ -370,13 +382,19 @@ export default function MeetingDetailsPage() {
               </div>
             </div>
 
-            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center gap-3">
-              <MapPin className="w-4 h-4 text-purple-600 shrink-0" />
-              <div className="truncate">
-                <span className="text-[10px] uppercase text-slate-400 block font-semibold">Location / Link</span>
-                <span className="font-medium text-slate-800 truncate block">
-                  {meeting.location || 'No location set'}
-                </span>
+            <div className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 flex items-start gap-3 min-w-0">
+              {isPureUrl(meeting.location) ? (
+                <Link2 className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
+              ) : (
+                <MapPin className="w-4 h-4 text-purple-600 shrink-0 mt-0.5" />
+              )}
+              <div className="min-w-0 flex-1 overflow-hidden">
+                <span className="text-[10px] uppercase text-slate-400 block font-semibold mb-0.5">Location / Link</span>
+                <LocationDisplay
+                  location={meeting.location}
+                  showLinkIcon={true}
+                  showExternalIcon={true}
+                />
               </div>
             </div>
           </div>
@@ -528,24 +546,24 @@ export default function MeetingDetailsPage() {
             </div>
 
             {/* Add Attendee Dropdown Form */}
-            {isLeader && availableUsers.length > 0 && (
-              <form onSubmit={handleAddAttendee} className="flex items-center gap-2">
-                <select
-                  value={selectedUserId}
-                  onChange={(e) => setSelectedUserId(e.target.value)}
-                  className="px-3 py-1.5 bg-white border border-slate-200 rounded-xl text-xs text-slate-900 focus:outline-none focus:border-purple-500"
-                >
-                  <option value="">Select teammate to invite...</option>
-                  {availableUsers.map((u) => (
-                    <option key={u.id} value={u.id}>
-                      👤 {u.name} ({u.email})
-                    </option>
-                  ))}
-                </select>
+            {isLeader && (
+              <form onSubmit={handleAddAttendee} className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full sm:w-auto">
+                <div className="w-full sm:w-72">
+                  <TeamMemberSelect
+                    teamId={currentTeam?.id || meeting?.team_id}
+                    initialMembers={allUsers.length > 0 ? allUsers : null}
+                    value={selectedUserId}
+                    onChange={setSelectedUserId}
+                    excludeUserIds={(meeting.attendees || []).map((a) => a.user_id)}
+                    multiple={false}
+                    placeholder="Select teammate to invite..."
+                    allowClear={true}
+                  />
+                </div>
                 <button
                   type="submit"
                   disabled={!selectedUserId || addingAttendee}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-medium cursor-pointer shadow-xs disabled:opacity-50"
+                  className="inline-flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 active:bg-purple-800 text-white text-xs font-medium cursor-pointer shadow-xs disabled:opacity-50 transition-colors shrink-0"
                 >
                   {addingAttendee ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <UserPlus className="w-3.5 h-3.5" />}
                   <span>Invite</span>

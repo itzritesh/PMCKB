@@ -64,25 +64,22 @@ export default function TasksPage() {
       setTasks(tasksRes.data.tasks || []);
       setProjects(projectsRes.data.projects || []);
 
-      // Fetch team members if team is selected, otherwise general users
+      // Fetch team members for currently selected team
       let teamUsers = [];
       if (currentTeam?.id) {
         try {
           const memRes = await teamService.getTeamMembers(currentTeam.id);
           const members = memRes.data?.members || [];
           teamUsers = members.map((m) => ({
-            id: m.user_id,
-            name: m.name,
-            email: m.email,
-            role: m.role,
+            id: m.id ?? m.user_id,
+            user_id: m.user_id ?? m.id,
+            name: m.name || m.user_name || m.email,
+            email: m.email || '',
+            role: m.role || 'member',
           }));
         } catch (e) {
           console.warn('Failed to load team members:', e);
         }
-      }
-      if (teamUsers.length === 0) {
-        const usersRes = await userService.getUsers();
-        teamUsers = usersRes.data.users || [];
       }
       setUsers(teamUsers);
     } catch (err) {
@@ -133,7 +130,12 @@ export default function TasksPage() {
 
   const handleQuickStatusChange = async (task, nextStatus) => {
     // If member, ensure task is assigned to current user
-    if (!isLeader && String(task.assigned_to) !== String(user?.id)) {
+    const isAssigned =
+      isLeader ||
+      (task.assignees && task.assignees.some((a) => String(a.id || a.user_id) === String(user?.id))) ||
+      String(task.assigned_to) === String(user?.id);
+
+    if (!isAssigned) {
       alert('You can only update the status of tasks assigned to you.');
       return;
     }
@@ -217,12 +219,14 @@ export default function TasksPage() {
     const matchesProject =
       projectFilter === 'all' || String(task.project_id) === String(projectFilter);
 
+    const isUnassigned = (!task.assignees || task.assignees.length === 0) && !task.assigned_to;
     const matchesAssignee =
       assigneeFilter === 'all'
         ? true
         : assigneeFilter === 'unassigned'
-        ? !task.assigned_to
-        : String(task.assigned_to) === String(assigneeFilter);
+        ? isUnassigned
+        : (task.assignees && task.assignees.some((a) => String(a.id || a.user_id) === String(assigneeFilter))) ||
+          String(task.assigned_to) === String(assigneeFilter);
 
     return matchesSearch && matchesStatus && matchesPriority && matchesProject && matchesAssignee;
   });

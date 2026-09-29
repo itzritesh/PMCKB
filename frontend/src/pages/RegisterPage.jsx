@@ -1,14 +1,21 @@
 import React, { useState } from 'react';
-import { Link, useNavigate, Navigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { UserPlus, User, Mail, Lock, Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react';
+import { sanitizeInternalRedirect } from '../utils/security';
 
 export default function RegisterPage() {
   const { register, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const searchParams = new URLSearchParams(location.search);
+  const redirectParam = searchParams.get('redirect');
+  const from = sanitizeInternalRedirect(redirectParam, '/dashboard');
+  const emailParam = searchParams.get('email') || '';
 
   const [name, setName] = useState('');
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState(emailParam);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
@@ -16,7 +23,7 @@ export default function RegisterPage() {
   const [error, setError] = useState(null);
 
   if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to={from} replace />;
   }
 
   const handleSubmit = async (e) => {
@@ -47,7 +54,7 @@ export default function RegisterPage() {
     setSubmitting(true);
     try {
       await register(name.trim(), email.trim(), password);
-      navigate('/dashboard', { replace: true });
+      navigate(from, { replace: true });
     } catch (err) {
       setError(err.message || 'Registration failed. Please try again.');
     } finally {
@@ -197,7 +204,7 @@ export default function RegisterPage() {
             <p className="text-xs text-slate-500">
               Already have an account?{' '}
               <Link
-                to="/login"
+                to={redirectParam ? `/login?redirect=${encodeURIComponent(redirectParam)}` : '/login'}
                 className="font-semibold text-indigo-600 hover:text-indigo-700 transition-colors"
               >
                 Sign In

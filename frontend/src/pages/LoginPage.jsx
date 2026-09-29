@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate, useLocation, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { LogIn, Mail, Lock, Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react';
+import { sanitizeInternalRedirect } from '../utils/security';
 
 export default function LoginPage() {
   const { login, isAuthenticated } = useAuth();
@@ -14,7 +15,11 @@ export default function LoginPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
 
-  const from = location.state?.from?.pathname || '/dashboard';
+  const searchParams = new URLSearchParams(location.search);
+  const redirectParam = searchParams.get('redirect');
+  const rawFrom = redirectParam || location.state?.from?.pathname;
+  const from = sanitizeInternalRedirect(rawFrom, '/dashboard');
+
   if (isAuthenticated) {
     return <Navigate to={from} replace />;
   }
@@ -141,7 +146,7 @@ export default function LoginPage() {
             <p className="text-xs text-slate-500">
               Don't have an account yet?{' '}
               <Link
-                to="/register"
+                to={redirectParam ? `/register?redirect=${encodeURIComponent(redirectParam)}` : '/register'}
                 className="font-semibold text-indigo-600 hover:text-indigo-700 transition-colors"
               >
                 Create an account

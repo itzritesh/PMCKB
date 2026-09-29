@@ -128,11 +128,22 @@ const TeamController = {
       const teamId = req.team.id;
       const members = await TeamMemberModel.findAllByTeam(teamId);
 
+      const formattedMembers = members.map((m) => ({
+        id: m.user_id,
+        user_id: m.user_id,
+        member_id: m.id,
+        team_id: m.team_id,
+        name: m.name,
+        email: m.email,
+        role: m.role,
+        joined_at: m.joined_at,
+      }));
+
       return sendSuccess(
         res,
         {
-          members,
-          total: members.length,
+          members: formattedMembers,
+          total: formattedMembers.length,
         },
         'Team members fetched successfully'
       );

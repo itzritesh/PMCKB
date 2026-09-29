@@ -22,6 +22,7 @@ import TeamsPage from '../pages/TeamsPage';
 import TeamDetailsPage from '../pages/TeamDetailsPage';
 import AcceptInvitePage from '../pages/AcceptInvitePage';
 import AnnouncementsPage from '../pages/AnnouncementsPage';
+import DesktopNotificationBanner from '../components/notifications/DesktopNotificationBanner';
 
 export default function AppRoutes() {
   const [backendStatus, setBackendStatus] = useState('checking');
@@ -36,6 +37,7 @@ export default function AppRoutes() {
         backendStatus={backendStatus}
         onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
       />
+      <DesktopNotificationBanner />
       <Sidebar
         isOpen={sidebarOpen}
         onClose={() => setSidebarOpen(false)}
@@ -61,6 +63,7 @@ export default function AppRoutes() {
 
           {/* Team Invitation Link */}
           <Route path="/invite/:token" element={<AcceptInvitePage />} />
+          <Route path="/invitations/accept/:token" element={<AcceptInvitePage />} />
 
           {/* Protected Application Modules */}
           <Route

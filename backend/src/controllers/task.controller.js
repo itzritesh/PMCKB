@@ -1,15 +1,105 @@
-const { TaskModel, ProjectModel, UserModel, TeamMemberModel } = require('../models');
+const { TaskModel, ProjectModel, UserModel, TeamMemberModel, NotificationModel } = require('../models');
 const { sendSuccess, sendError } = require('../utils/response');
+const { emitToUser } = require('../config/socket');
+const WebPushService = require('../services/webPushService');
+const { query } = require('../config/db');
 
 const ALLOWED_STATUSES = ['todo', 'in_progress', 'completed'];
 const ALLOWED_PRIORITIES = ['low', 'medium', 'high', 'urgent'];
 
 /**
- * Task Controller for CRUD and Assignment operations with team isolation & role rules
+ * Validate that every assignee ID in assigneeIds belongs to the target team.
+ * Rejects invalid format or cross-team users with 403 Forbidden.
+ * Deduplicates IDs.
+ * @param {Array<number|string>|number|string} rawAssignees
+ * @param {number} teamId
+ * @returns {Promise<{valid: boolean, userIds: Array<number>, error?: string, status?: number}>}
+ */
+async function validateTeamAssignees(rawAssignees, teamId) {
+  if (rawAssignees === undefined || rawAssignees === null) {
+    return { valid: true, userIds: [] };
+  }
+
+  const list = Array.isArray(rawAssignees) ? rawAssignees : [rawAssignees];
+  if (list.length === 0) {
+    return { valid: true, userIds: [] };
+  }
+
+  // Parse IDs
+  const parsedIds = [];
+  for (const item of list) {
+    if (item === null || item === '' || item === undefined) continue;
+    const parsed = parseInt(item, 10);
+    if (isNaN(parsed) || parsed <= 0) {
+      return { valid: false, error: 'Invalid assignee user ID format.', status: 400 };
+    }
+    parsedIds.push(parsed);
+  }
+
+  const uniqueIds = [...new Set(parsedIds)];
+  if (uniqueIds.length === 0) {
+    return { valid: true, userIds: [] };
+  }
+
+  // Check that EVERY user belongs to the target team
+  const checkRes = await query(
+    `SELECT user_id FROM team_members WHERE team_id = $1 AND user_id = ANY($2::int[])`,
+    [teamId, uniqueIds]
+  );
+  const foundUserIds = new Set(checkRes.rows.map((r) => r.user_id));
+
+  for (const uid of uniqueIds) {
+    if (!foundUserIds.has(uid)) {
+      return {
+        valid: false,
+        error: `User ID ${uid} does not belong to this team. Cross-team assignment is strictly forbidden.`,
+        status: 403,
+      };
+    }
+  }
+
+  return { valid: true, userIds: uniqueIds };
+}
+
+/**
+ * Notify newly assigned users of a task assignment
+ * @param {object} task
+ * @param {Array<number>} newAssigneeIds
+ * @param {Array<number>} previousAssigneeIds
+ * @param {number|null} assignedBy
+ */
+async function notifyNewAssignees(task, newAssigneeIds, previousAssigneeIds = [], assignedBy = null) {
+  if (!Array.isArray(newAssigneeIds) || newAssigneeIds.length === 0) return;
+  const prevSet = new Set(previousAssigneeIds);
+
+  for (const uid of newAssigneeIds) {
+    if (!prevSet.has(uid) && uid !== assignedBy) {
+      try {
+        const notif = await NotificationModel.create({
+          userId: uid,
+          teamId: task.team_id,
+          type: 'task_assigned',
+          title: 'Task Assigned',
+          message: `You were assigned to "${task.title}".`,
+          referenceType: 'task',
+          referenceId: task.id,
+          isDismissed: false,
+        });
+        emitToUser(uid, 'notification:new', notif);
+        WebPushService.sendPushToUser(uid, notif).catch(() => {});
+      } catch (e) {
+        console.warn('⚠️ [TaskController] Assignment notification error:', e.message);
+      }
+    }
+  }
+}
+
+/**
+ * Task Controller for CRUD and Multi-Assignment operations with team isolation & role rules
  */
 const TaskController = {
   /**
-   * Create a new task in a project
+   * Create a new task in a project (Leader only)
    * POST /api/tasks
    */
   async createTask(req, res, next) {
@@ -19,7 +109,7 @@ const TaskController = {
         return sendError(res, 'Access denied. Only team leaders can create tasks.', 403);
       }
 
-      const { project_id, title, description, status, priority, due_date, assigned_to } = req.body;
+      const { project_id, title, description, status, priority, due_date, assigned_to, assignee_ids } = req.body;
 
       const projectId = parseInt(project_id, 10);
       if (isNaN(projectId)) {
@@ -68,24 +158,17 @@ const TaskController = {
         formattedDueDate = parsedDate.toISOString();
       }
 
-      // Assignment rule: Target assignee MUST belong to the same team as the project
-      let assigneeId = null;
-      if (assigned_to !== undefined && assigned_to !== null && assigned_to !== '') {
-        const parsedUserId = parseInt(assigned_to, 10);
-        if (isNaN(parsedUserId)) {
-          return sendError(res, 'Invalid assigned_to user ID format.', 400);
-        }
+      // Multi-assignee support with backwards compatibility for assigned_to
+      let rawAssignees = [];
+      if (assignee_ids !== undefined) {
+        rawAssignees = assignee_ids;
+      } else if (assigned_to !== undefined && assigned_to !== null && assigned_to !== '') {
+        rawAssignees = [assigned_to];
+      }
 
-        const assigneeMembership = await TeamMemberModel.findByTeamAndUser(project.team_id, parsedUserId);
-        if (!assigneeMembership) {
-          return sendError(
-            res,
-            'Target assignee must belong to the same team as the project. Cross-team assignment is not allowed.',
-            400
-          );
-        }
-
-        assigneeId = parsedUserId;
+      const assigneeValidation = await validateTeamAssignees(rawAssignees, project.team_id);
+      if (!assigneeValidation.valid) {
+        return sendError(res, assigneeValidation.error, assigneeValidation.status || 403);
       }
 
       const task = await TaskModel.create({
@@ -96,8 +179,12 @@ const TaskController = {
         status: taskStatus,
         priority: taskPriority,
         dueDate: formattedDueDate,
-        assignedTo: assigneeId,
+        assigneeIds: assigneeValidation.userIds,
+        createdBy: req.user.id,
       });
+
+      // Dispatch real-time assignment notifications
+      notifyNewAssignees(task, assigneeValidation.userIds, [], req.user.id);
 
       return sendSuccess(res, { task }, 'Task created successfully', 201);
     } catch (error) {
@@ -165,12 +252,16 @@ const TaskController = {
    */
   async updateTask(req, res, next) {
     try {
-      const { title, description, status, priority, due_date, assigned_to } = req.body;
+      const { title, description, status, priority, due_date, assigned_to, assignee_ids } = req.body;
 
       // Role check: If caller is a Member
       if (req.teamRole === 'member') {
-        // 1. Members can only update their own assigned tasks
-        if (req.resource.assigned_to !== req.user.id) {
+        // Members can only update their own assigned tasks
+        const isAssigned =
+          req.resource.assigned_to === req.user.id ||
+          (Array.isArray(req.resource.assignees) && req.resource.assignees.some((a) => a.id === req.user.id));
+
+        if (!isAssigned) {
           return sendError(
             res,
             'Access denied. Members can only update their own assigned tasks.',
@@ -178,12 +269,12 @@ const TaskController = {
           );
         }
 
-        // 2. Members can ONLY update status - reject changes to other properties
+        // Members can ONLY update status - reject changes to other properties
         const hasTitleChange = title !== undefined && title.trim() !== req.resource.title;
         const hasDescChange = description !== undefined && description.trim() !== (req.resource.description || '');
         const hasPriorityChange = priority !== undefined && priority !== req.resource.priority;
-        const hasAssigneeChange = assigned_to !== undefined && assigned_to !== req.resource.assigned_to;
-        
+        const hasAssigneeChange = assigned_to !== undefined || assignee_ids !== undefined;
+
         let hasDateChange = false;
         if (due_date !== undefined) {
           const reqTime = due_date ? new Date(due_date).getTime() : null;
@@ -215,7 +306,6 @@ const TaskController = {
           status: taskStatus,
           priority: req.resource.priority,
           dueDate: req.resource.due_date,
-          assignedTo: req.resource.assigned_to,
         });
 
         return sendSuccess(res, { task: updatedTask }, 'Task status updated successfully');
@@ -264,27 +354,26 @@ const TaskController = {
         }
       }
 
-      let assigneeId = req.resource.assigned_to;
-      if (assigned_to !== undefined) {
-        if (assigned_to === null || assigned_to === '') {
-          assigneeId = null;
-        } else {
-          const parsedUserId = parseInt(assigned_to, 10);
-          if (isNaN(parsedUserId)) {
-            return sendError(res, 'Invalid assigned_to user ID format.', 400);
-          }
-
-          const assigneeMembership = await TeamMemberModel.findByTeamAndUser(req.resource.team_id, parsedUserId);
-          if (!assigneeMembership) {
-            return sendError(
-              res,
-              'Target assignee must belong to the same team as the project. Cross-team assignment is not allowed.',
-              400
-            );
-          }
-
-          assigneeId = parsedUserId;
+      // Validate assignees if provided
+      let targetAssigneeIds = undefined;
+      if (assignee_ids !== undefined) {
+        const val = await validateTeamAssignees(assignee_ids, req.resource.team_id);
+        if (!val.valid) {
+          return sendError(res, val.error, val.status || 403);
         }
+        targetAssigneeIds = val.userIds;
+      } else if (assigned_to !== undefined) {
+        const legacyVal = assigned_to ? [assigned_to] : [];
+        const val = await validateTeamAssignees(legacyVal, req.resource.team_id);
+        if (!val.valid) {
+          return sendError(res, val.error, val.status || 403);
+        }
+        targetAssigneeIds = val.userIds;
+      }
+
+      const prevAssigneeIds = (req.resource.assignees || []).map((a) => a.id);
+      if (req.resource.assigned_to && !prevAssigneeIds.includes(req.resource.assigned_to)) {
+        prevAssigneeIds.push(req.resource.assigned_to);
       }
 
       const updatedTask = await TaskModel.update({
@@ -294,8 +383,14 @@ const TaskController = {
         status: taskStatus,
         priority: taskPriority,
         dueDate: formattedDueDate,
-        assignedTo: assigneeId,
+        assigneeIds: targetAssigneeIds,
+        updatedBy: req.user.id,
       });
+
+      // Dispatch notifications to newly assigned members
+      if (targetAssigneeIds !== undefined) {
+        notifyNewAssignees(updatedTask, targetAssigneeIds, prevAssigneeIds, req.user.id);
+      }
 
       return sendSuccess(res, { task: updatedTask }, 'Task updated successfully');
     } catch (error) {
@@ -313,31 +408,32 @@ const TaskController = {
         return sendError(res, 'Access denied. Only team leaders can assign tasks.', 403);
       }
 
-      const { assigned_to } = req.body;
+      const { assigned_to, assignee_ids } = req.body;
 
-      let assigneeId = null;
-      if (assigned_to !== undefined && assigned_to !== null && assigned_to !== '') {
-        const parsedUserId = parseInt(assigned_to, 10);
-        if (isNaN(parsedUserId)) {
-          return sendError(res, 'Invalid assigned_to user ID format.', 400);
-        }
+      let rawAssignees = [];
+      if (assignee_ids !== undefined) {
+        rawAssignees = assignee_ids;
+      } else if (assigned_to !== undefined && assigned_to !== null && assigned_to !== '') {
+        rawAssignees = [assigned_to];
+      }
 
-        const assigneeMembership = await TeamMemberModel.findByTeamAndUser(req.resource.team_id, parsedUserId);
-        if (!assigneeMembership) {
-          return sendError(
-            res,
-            'Target assignee must belong to the same team as the project. Cross-team assignment is not allowed.',
-            400
-          );
-        }
+      const val = await validateTeamAssignees(rawAssignees, req.resource.team_id);
+      if (!val.valid) {
+        return sendError(res, val.error, val.status || 403);
+      }
 
-        assigneeId = parsedUserId;
+      const prevAssigneeIds = (req.resource.assignees || []).map((a) => a.id);
+      if (req.resource.assigned_to && !prevAssigneeIds.includes(req.resource.assigned_to)) {
+        prevAssigneeIds.push(req.resource.assigned_to);
       }
 
       const updatedTask = await TaskModel.assign({
         id: req.resource.id,
-        assignedTo: assigneeId,
+        assigneeIds: val.userIds,
+        assignedBy: req.user.id,
       });
+
+      notifyNewAssignees(updatedTask, val.userIds, prevAssigneeIds, req.user.id);
 
       return sendSuccess(res, { task: updatedTask }, 'Task assigned successfully');
     } catch (error) {

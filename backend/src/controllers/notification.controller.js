@@ -1,6 +1,7 @@
-const { NotificationModel } = require('../models');
+const { NotificationModel, PushSubscriptionModel } = require('../models');
 const { sendSuccess, sendError } = require('../utils/response');
 const { emitToUser } = require('../config/socket');
+const WebPushService = require('../services/webPushService');
 const { query } = require('../config/db');
 
 const NotificationController = {
@@ -42,9 +43,16 @@ const NotificationController = {
         message: notifMessage,
         referenceType: reference_type,
         referenceId: parseInt(reference_id, 10) || 1,
+        isDismissed: false,
       });
 
+      // Emit real-time notification to user via Socket.IO
       emitToUser(req.user.id, 'notification:new', notif);
+
+      // Dispatch Web Push notification to user's registered devices
+      WebPushService.sendPushToUser(req.user.id, notif).catch((pushErr) => {
+        console.warn('⚠️ [TestNotification] Push warning:', pushErr.message);
+      });
 
       return sendSuccess(
         res,
@@ -74,6 +82,93 @@ const NotificationController = {
   },
 
   /**
+   * Return VAPID Public Key for client subscription setup
+   * GET /api/notifications/push/vapid-public-key
+   */
+  async getVapidPublicKey(req, res, next) {
+    try {
+      const publicKey = WebPushService.getPublicKey();
+      return sendSuccess(
+        res,
+        {
+          publicKey,
+          isConfigured: WebPushService.isConfigured(),
+        },
+        'VAPID public key retrieved successfully.'
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * Save a Web Push subscription associated strictly with req.user.id
+   * POST /api/notifications/push/subscribe
+   */
+  async subscribePush(req, res, next) {
+    try {
+      const { subscription } = req.body;
+      if (!subscription || !subscription.endpoint || !subscription.keys?.p256dh || !subscription.keys?.auth) {
+        return sendError(res, 'Valid subscription with endpoint, p256dh, and auth keys is required.', 400);
+      }
+
+      const saved = await PushSubscriptionModel.upsertSubscription(req.user.id, subscription);
+
+      return sendSuccess(
+        res,
+        { subscription: saved },
+        'Push notification subscription registered successfully.',
+        201
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * Remove a Web Push subscription for req.user.id
+   * POST /api/notifications/push/unsubscribe
+   */
+  async unsubscribePush(req, res, next) {
+    try {
+      const { endpoint } = req.body;
+      if (!endpoint) {
+        return sendError(res, 'Subscription endpoint is required.', 400);
+      }
+
+      const deleted = await PushSubscriptionModel.deleteSubscription(req.user.id, endpoint);
+
+      return sendSuccess(
+        res,
+        { deleted: !!deleted },
+        'Push notification subscription removed successfully.'
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * Get Web Push subscription status for the current user
+   * GET /api/notifications/push/status
+   */
+  async getPushStatus(req, res, next) {
+    try {
+      const isSubscribed = await PushSubscriptionModel.isSubscribed(req.user.id);
+      return sendSuccess(
+        res,
+        {
+          isSubscribed,
+          isVapidConfigured: WebPushService.isConfigured(),
+        },
+        'Push subscription status retrieved.'
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
    * List notifications for authenticated user
    * GET /api/notifications
    */
@@ -82,12 +177,14 @@ const NotificationController = {
       const teamId = req.teamId || null;
       const limit = parseInt(req.query.limit, 10) || 50;
       const onlyUnread = req.query.unread === 'true';
+      const onlyActiveToasts = req.query.activeToasts === 'true';
 
       const [notifications, unreadCount] = await Promise.all([
         NotificationModel.findAllForUser(req.user.id, {
           teamId,
           limit,
           onlyUnread,
+          onlyActiveToasts,
         }),
         NotificationModel.countUnread(req.user.id, teamId),
       ]);
@@ -106,8 +203,10 @@ const NotificationController = {
   },
 
   /**
-   * Mark a notification as read
+   * Mark a notification as read (optionally also mark dismissed if dismiss=true)
    * PATCH /api/notifications/:id/read
+   * Lifecycle: View action sends { dismiss: true } => is_read = true, is_dismissed = true
+   *            Mark as read action sends {} => is_read = true, is_dismissed unchanged
    */
   async markRead(req, res, next) {
     try {
@@ -116,7 +215,8 @@ const NotificationController = {
         return sendError(res, 'Invalid notification ID.', 400);
       }
 
-      const updated = await NotificationModel.markAsRead(id, req.user.id);
+      const dismiss = req.body?.dismiss === true;
+      const updated = await NotificationModel.markAsRead(id, req.user.id, { dismiss });
       if (!updated) {
         return sendError(res, 'Notification not found or unauthorized.', 404);
       }
@@ -127,6 +227,35 @@ const NotificationController = {
         res,
         { notification: updated, unreadCount },
         'Notification marked as read.'
+      );
+    } catch (error) {
+      next(error);
+    }
+  },
+
+  /**
+   * Dismiss a notification (removes active toast, keeps notification in notification center)
+   * PATCH /api/notifications/:id/dismiss
+   * Lifecycle: Dismiss / X action => is_dismissed = true, is_read unchanged
+   */
+  async dismiss(req, res, next) {
+    try {
+      const id = parseInt(req.params.id, 10);
+      if (isNaN(id)) {
+        return sendError(res, 'Invalid notification ID.', 400);
+      }
+
+      const updated = await NotificationModel.markAsDismissed(id, req.user.id);
+      if (!updated) {
+        return sendError(res, 'Notification not found or unauthorized.', 404);
+      }
+
+      const unreadCount = await NotificationModel.countUnread(req.user.id, req.teamId || null);
+
+      return sendSuccess(
+        res,
+        { notification: updated, unreadCount },
+        'Notification marked as dismissed.'
       );
     } catch (error) {
       next(error);
@@ -153,7 +282,7 @@ const NotificationController = {
   },
 
   /**
-   * Delete a notification
+   * Delete a notification for user
    * DELETE /api/notifications/:id
    */
   async delete(req, res, next) {

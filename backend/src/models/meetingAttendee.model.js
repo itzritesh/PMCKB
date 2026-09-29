@@ -79,7 +79,7 @@ const MeetingAttendeeModel = {
   },
 
   /**
-   * Remove attendee from meeting
+   * Remove attendee from meetinga
    */
   async removeAttendee({ meetingId, userId }) {
     const text = `

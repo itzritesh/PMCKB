@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import {
   Calendar,
   AlertTriangle,
@@ -8,14 +8,17 @@ import {
   Edit3,
   Trash2,
   User,
+  Users,
   UserPlus,
   UserX,
   FolderGit2,
   ChevronDown,
   MessageSquare,
+  Check,
 } from 'lucide-react';
 import PriorityBadge from './PriorityBadge';
 import TaskStatusPill from './TaskStatusPill';
+import { getUserDisplayName, getUserInitials } from '../common/TeamMemberSelect';
 
 export default function TaskCard({
   task,
@@ -28,6 +31,19 @@ export default function TaskCard({
   showProject = false,
 }) {
   const [showAssignDropdown, setShowAssignDropdown] = useState(false);
+  const dropdownRef = useRef(null);
+
+  useEffect(() => {
+    const handleOutsideClick = (e) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
+        setShowAssignDropdown(false);
+      }
+    };
+    if (showAssignDropdown) {
+      document.addEventListener('mousedown', handleOutsideClick);
+    }
+    return () => document.removeEventListener('mousedown', handleOutsideClick);
+  }, [showAssignDropdown]);
 
   const isOverdue =
     task.due_date &&
@@ -44,14 +60,28 @@ export default function TaskCard({
       })
     : null;
 
-  const getInitials = (name) => {
-    if (!name) return '?';
-    const parts = name.trim().split(' ');
-    if (parts.length >= 2) {
-      return (parts[0][0] + parts[1][0]).toUpperCase();
+  // Resolve assignees list
+  const assignees = React.useMemo(() => {
+    if (Array.isArray(task.assignees) && task.assignees.length > 0) {
+      return task.assignees.map((a) => ({
+        id: a.id ?? a.user_id,
+        name: getUserDisplayName(a),
+        email: a.email || '',
+      }));
     }
-    return name.slice(0, 2).toUpperCase();
-  };
+    if (task.assigned_to) {
+      return [
+        {
+          id: task.assigned_to,
+          name: task.assignee_name || `Member #${task.assigned_to}`,
+          email: task.assignee_email || '',
+        },
+      ];
+    }
+    return [];
+  }, [task.assignees, task.assigned_to, task.assignee_name, task.assignee_email]);
+
+  const hasAssignees = assignees.length > 0;
 
   return (
     <div
@@ -94,7 +124,7 @@ export default function TaskCard({
                     : task.status === 'in_progress'
                     ? 'completed'
                     : 'todo';
-                onStatusChange(task, nextStatus);
+                onStatusChange?.(task, nextStatus);
               }}
               title={`Advance status from ${task.status}`}
               className="p-1.5 rounded-lg text-slate-400 hover:text-indigo-600 hover:bg-slate-100 transition-colors cursor-pointer text-xs flex items-center gap-1"
@@ -157,7 +187,7 @@ export default function TaskCard({
         )}
       </div>
 
-      {/* Footer: Due date & Assignee with Quick Reassign Dropdown */}
+      {/* Footer: Due date & Assignees Area */}
       <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-500 relative">
         {/* Due Date */}
         <div className="flex items-center gap-1.5">
@@ -171,105 +201,110 @@ export default function TaskCard({
           )}
         </div>
 
-        {/* Assignee Indicator & Quick Reassign Trigger */}
-        <div className="relative">
-          {onAssign ? (
-            <button
-              type="button"
-              onClick={() => setShowAssignDropdown(!showAssignDropdown)}
-              title="Click to reassign or unassign"
-              className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer text-slate-700"
-            >
-              {task.assignee_name ? (
-                <>
-                  <div className="w-5 h-5 rounded-full bg-indigo-600 text-[10px] font-bold text-white flex items-center justify-center shrink-0">
-                    {getInitials(task.assignee_name)}
-                  </div>
-                  <span className="max-w-[100px] truncate text-[11px] font-medium text-slate-800">
-                    {task.assignee_name}
-                  </span>
-                </>
-              ) : (
-                <>
-                  <UserX className="w-3.5 h-3.5 text-slate-400" />
-                  <span className="text-[11px] text-slate-500">Unassigned</span>
-                </>
-              )}
-              <ChevronDown className="w-3 h-3 text-slate-400" />
-            </button>
-          ) : (
-            <div className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-slate-50 border border-slate-200 text-slate-700">
-              {task.assignee_name ? (
-                <>
-                  <div className="w-5 h-5 rounded-full bg-indigo-600 text-[10px] font-bold text-white flex items-center justify-center shrink-0">
-                    {getInitials(task.assignee_name)}
-                  </div>
-                  <span className="max-w-[100px] truncate text-[11px] font-medium text-slate-800">
-                    {task.assignee_name}
-                  </span>
-                </>
-              ) : (
-                <>
-                  <UserX className="w-3.5 h-3.5 text-slate-400" />
-                  <span className="text-[11px] text-slate-500">Unassigned</span>
-                </>
-              )}
-            </div>
-          )}
-
-          {/* Quick Assign Dropdown Popover */}
-          {showAssignDropdown && (
-            <div className="absolute right-0 bottom-full mb-2 w-56 rounded-2xl bg-white border border-slate-200 shadow-xl p-2 z-30 animate-in fade-in zoom-in-95 duration-150">
-              <div className="px-2 py-1 text-[10px] font-semibold text-slate-400 uppercase tracking-wider border-b border-slate-100 mb-1">
-                Assign Task
-              </div>
-
-              {/* Option to unassign */}
-              <button
-                type="button"
-                onClick={() => {
-                  onAssign(task, null);
-                  setShowAssignDropdown(false);
-                }}
-                className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-xl text-left text-xs transition-colors cursor-pointer ${
-                  !task.assigned_to
-                    ? 'bg-indigo-50 text-indigo-700 font-medium'
-                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                }`}
-              >
-                <UserX className="w-3.5 h-3.5" />
-                <span>Unassigned</span>
-              </button>
-
-              {/* Users list */}
-              <div className="max-h-40 overflow-y-auto space-y-0.5 mt-1">
-                {users.map((u) => {
-                  const isSelected = task.assigned_to === u.id;
-                  return (
-                    <button
-                      key={u.id}
-                      type="button"
-                      onClick={() => {
-                        onAssign(task, u.id);
-                        setShowAssignDropdown(false);
-                      }}
-                      className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-xl text-left text-xs transition-colors cursor-pointer ${
-                        isSelected
-                          ? 'bg-indigo-50 text-indigo-700 font-medium'
-                          : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
-                      }`}
+        {/* Assignees Area with Multiple Avatars / Names */}
+        <div ref={dropdownRef} className="relative">
+          <button
+            type="button"
+            onClick={() => setShowAssignDropdown(!showAssignDropdown)}
+            title={
+              hasAssignees
+                ? `Assigned to: ${assignees.map((a) => a.name).join(', ')}`
+                : 'Unassigned task'
+            }
+            className="flex items-center gap-1.5 px-2 py-1 rounded-xl bg-slate-50 hover:bg-slate-100 border border-slate-200 transition-colors cursor-pointer text-slate-700 max-w-[200px]"
+          >
+            {hasAssignees ? (
+              <div className="flex items-center gap-1.5 min-w-0">
+                {/* Overlapping or Stacked Avatars */}
+                <div className="flex -space-x-1.5 overflow-hidden shrink-0">
+                  {assignees.slice(0, 3).map((a, idx) => (
+                    <div
+                      key={a.id || idx}
+                      title={a.name}
+                      className="w-5 h-5 rounded-full bg-indigo-600 text-[9px] font-bold text-white flex items-center justify-center border-2 border-white shrink-0 shadow-2xs"
                     >
-                      <div className="w-5 h-5 rounded-full bg-slate-100 border border-slate-200 text-[10px] font-bold text-slate-600 flex items-center justify-center shrink-0">
-                        {getInitials(u.name)}
-                      </div>
-                      <div className="truncate">
-                        <span className="block truncate font-medium text-slate-900">{u.name}</span>
-                        <span className="block truncate text-[10px] text-slate-400">{u.email}</span>
-                      </div>
-                    </button>
-                  );
-                })}
+                      {getUserInitials(a.name)}
+                    </div>
+                  ))}
+                  {assignees.length > 3 && (
+                    <div className="w-5 h-5 rounded-full bg-slate-200 text-slate-700 text-[8px] font-bold flex items-center justify-center border-2 border-white shrink-0">
+                      +{assignees.length - 3}
+                    </div>
+                  )}
+                </div>
+
+                {/* Primary label: full name if 1, count if multiple */}
+                {assignees.length === 1 ? (
+                  <span className="truncate text-[11px] font-semibold text-slate-800">
+                    {assignees[0].name}
+                  </span>
+                ) : (
+                  <span className="text-[11px] font-semibold text-slate-800">
+                    {assignees.length} assignees
+                  </span>
+                )}
               </div>
+            ) : (
+              <div className="flex items-center gap-1">
+                <UserX className="w-3.5 h-3.5 text-slate-400" />
+                <span className="text-[11px] text-slate-500">Unassigned</span>
+              </div>
+            )}
+            <ChevronDown className="w-3 h-3 text-slate-400 shrink-0" />
+          </button>
+
+          {/* Quick Assignees Popover */}
+          {showAssignDropdown && (
+            <div className="absolute right-0 bottom-full mb-2 w-64 rounded-2xl bg-white border border-slate-200 shadow-xl p-2.5 z-30 animate-in fade-in zoom-in-95 duration-150">
+              <div className="flex items-center justify-between px-2 py-1 text-[10px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 mb-1.5">
+                <span>Assigned Members</span>
+                <span>{assignees.length} total</span>
+              </div>
+
+              {/* Current Assignees List */}
+              {hasAssignees ? (
+                <div className="max-h-36 overflow-y-auto space-y-1 mb-2">
+                  {assignees.map((a) => (
+                    <div
+                      key={a.id}
+                      className="flex items-center gap-2 px-2 py-1.5 rounded-xl bg-slate-50 border border-slate-100 text-xs"
+                    >
+                      <div className="w-6 h-6 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center shrink-0">
+                        {getUserInitials(a.name)}
+                      </div>
+                      <div className="min-w-0 flex-1 truncate">
+                        <span className="block font-semibold text-slate-900 truncate">
+                          {a.name}
+                        </span>
+                        {a.email && (
+                          <span className="block text-[10px] text-slate-400 truncate">
+                            {a.email}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-2 text-center text-xs text-slate-400 italic">
+                  No members assigned yet
+                </div>
+              )}
+
+              {/* If onEdit is provided, quick shortcut to open edit modal */}
+              {onEdit && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAssignDropdown(false);
+                    onEdit(task);
+                  }}
+                  className="w-full mt-1 flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold transition-colors cursor-pointer"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>Manage Assignees</span>
+                </button>
+              )}
             </div>
           )}
         </div>

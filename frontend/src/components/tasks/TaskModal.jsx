@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { X, CheckSquare, Edit3, Loader2, AlertCircle } from 'lucide-react';
-import AssigneeSelector from './AssigneeSelector';
+import TeamMemberSelect from '../common/TeamMemberSelect';
 
 export default function TaskModal({
   isOpen,
@@ -20,7 +20,7 @@ export default function TaskModal({
   const [status, setStatus] = useState('todo');
   const [priority, setPriority] = useState('medium');
   const [dueDate, setDueDate] = useState('');
-  const [assignedTo, setAssignedTo] = useState(null);
+  const [assigneeIds, setAssigneeIds] = useState([]);
   const [error, setError] = useState(null);
 
   useEffect(() => {
@@ -32,7 +32,15 @@ export default function TaskModal({
       setProjectId(task.project_id || defaultProjectId || '');
       setStatus(task.status || 'todo');
       setPriority(task.priority || 'medium');
-      setAssignedTo(task.assigned_to || null);
+
+      // Populate assignees from task.assignees or fallback to task.assigned_to
+      if (Array.isArray(task.assignees) && task.assignees.length > 0) {
+        setAssigneeIds(task.assignees.map((a) => a.id || a.user_id));
+      } else if (task.assigned_to) {
+        setAssigneeIds([task.assigned_to]);
+      } else {
+        setAssigneeIds([]);
+      }
 
       if (task.due_date) {
         const d = new Date(task.due_date);
@@ -49,13 +57,17 @@ export default function TaskModal({
       setProjectId(initialPid);
       setStatus('todo');
       setPriority('medium');
-      setAssignedTo(null);
+      setAssigneeIds([]);
       setDueDate('');
     }
     setError(null);
-  }, [task, isOpen]);
+  }, [task, isOpen, defaultProjectId, projects]);
 
   if (!isOpen) return null;
+
+  const selectedPid = defaultProjectId || projectId;
+  const currentProject = projects.find((p) => String(p.id) === String(selectedPid));
+  const teamId = currentProject?.team_id || task?.team_id || null;
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -66,13 +78,13 @@ export default function TaskModal({
       return;
     }
 
-    const selectedPid = defaultProjectId || projectId;
     if (!selectedPid) {
       setError('Please select a project for this task.');
       return;
     }
 
     try {
+      const primaryAssignee = assigneeIds.length > 0 ? assigneeIds[0] : null;
       await onSubmit({
         project_id: selectedPid,
         title: title.trim(),
@@ -80,7 +92,8 @@ export default function TaskModal({
         status,
         priority,
         due_date: dueDate ? new Date(dueDate).toISOString() : null,
-        assigned_to: assignedTo || null,
+        assigned_to: primaryAssignee,
+        assignee_ids: assigneeIds,
       });
       onClose();
     } catch (err) {
@@ -209,15 +222,25 @@ export default function TaskModal({
             </div>
           </div>
 
-          {/* Assigned To */}
+          {/* Assigned To - Multi-Select */}
           <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              Assigned To
-            </label>
-            <AssigneeSelector
-              users={users}
-              value={assignedTo}
-              onChange={setAssignedTo}
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="block text-xs font-semibold text-slate-700">
+                Assigned To
+              </label>
+              {assigneeIds.length > 0 && (
+                <span className="text-[11px] font-medium text-indigo-600">
+                  {assigneeIds.length} {assigneeIds.length === 1 ? 'member assigned' : 'members assigned'}
+                </span>
+              )}
+            </div>
+            <TeamMemberSelect
+              teamId={teamId}
+              initialMembers={users && users.length > 0 ? users : null}
+              value={assigneeIds}
+              onChange={setAssigneeIds}
+              multiple={true}
+              placeholder="Search and select team members..."
             />
           </div>
 

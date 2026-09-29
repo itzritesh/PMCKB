@@ -12,6 +12,7 @@ import {
   Trash2,
   FolderGit2,
   AlertTriangle,
+  Users,
 } from 'lucide-react';
 import { commentService } from '../../services/commentService';
 import { useAuth } from '../../context/AuthContext';
@@ -194,18 +195,76 @@ export default function TaskDetailsModal({
             </p>
           )}
 
-          {/* Metadata Row */}
-          <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 gap-2.5 text-xs text-slate-600">
-            <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-200">
-              <User className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
-              <div className="truncate">
-                <span className="text-[10px] uppercase tracking-wider text-slate-400 block">Assignee</span>
-                <span className="font-medium text-slate-800 truncate">
-                  {task.assignee_name || 'Unassigned'}
-                </span>
-              </div>
+          {/* Assigned Members Section */}
+          <div className="mt-3.5 p-3.5 rounded-2xl bg-white border border-slate-200">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                <Users className="w-3.5 h-3.5 text-indigo-600" />
+                Assigned Members (
+                {Array.isArray(task.assignees) && task.assignees.length > 0
+                  ? task.assignees.length
+                  : task.assigned_to
+                  ? 1
+                  : 0}
+                )
+              </span>
+              {onEditTask && (
+                <button
+                  type="button"
+                  onClick={() => onEditTask(task)}
+                  className="text-xs font-semibold text-indigo-600 hover:text-indigo-700 hover:underline cursor-pointer"
+                >
+                  Manage
+                </button>
+              )}
             </div>
 
+            {Array.isArray(task.assignees) && task.assignees.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {task.assignees.map((a) => (
+                  <div
+                    key={a.id || a.user_id}
+                    className="flex items-center gap-2 p-2 rounded-xl bg-slate-50 border border-slate-100"
+                  >
+                    <div className="w-6 h-6 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center shrink-0">
+                      {getInitials(a.name)}
+                    </div>
+                    <div className="min-w-0 flex-1 truncate">
+                      <span className="block text-xs font-semibold text-slate-800 truncate">
+                        {a.name}
+                      </span>
+                      {a.email && (
+                        <span className="block text-[10px] text-slate-400 truncate">
+                          {a.email}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : task.assigned_to ? (
+              <div className="flex items-center gap-2 p-2 rounded-xl bg-slate-50 border border-slate-100 max-w-sm">
+                <div className="w-6 h-6 rounded-full bg-indigo-600 text-white text-[10px] font-bold flex items-center justify-center shrink-0">
+                  {getInitials(task.assignee_name)}
+                </div>
+                <div className="min-w-0 flex-1 truncate">
+                  <span className="block text-xs font-semibold text-slate-800 truncate">
+                    {task.assignee_name || `Member #${task.assigned_to}`}
+                  </span>
+                  {task.assignee_email && (
+                    <span className="block text-[10px] text-slate-400 truncate">
+                      {task.assignee_email}
+                    </span>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <span className="text-xs text-slate-400 italic">No team members assigned</span>
+            )}
+          </div>
+
+          {/* Metadata Row */}
+          <div className="mt-3 grid grid-cols-2 gap-2.5 text-xs text-slate-600">
             <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-200">
               <Calendar className={`w-3.5 h-3.5 ${isOverdue ? 'text-rose-600' : 'text-slate-400'} shrink-0`} />
               <div className="truncate">
@@ -216,7 +275,7 @@ export default function TaskDetailsModal({
               </div>
             </div>
 
-            <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-200 col-span-2 sm:col-span-1">
+            <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-xl border border-slate-200">
               <Clock className="w-3.5 h-3.5 text-slate-400 shrink-0" />
               <div className="truncate">
                 <span className="text-[10px] uppercase tracking-wider text-slate-400 block">Created</span>

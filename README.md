@@ -413,5 +413,162 @@ All protected endpoints require the HTTP header:
 
 ---
 
+## 📧 Real Email Team Invitations & SMTP Configuration
+
+PMCKB features an enterprise-ready, real-world email invitation system for teams and workspaces. When a Team Leader invites a colleague by email, the backend securely records the invitation, computes a one-way cryptographic SHA-256 hash, and dispatches a responsive branded HTML email via `nodemailer`.
+
+### 1. Environment Variables Configuration
+
+Add the following email settings to `backend/.env` (reference `backend/.env.example`):
+
+```env
+# Email Service Configuration (Team Invitations & Notifications)
+EMAIL_PROVIDER=gmail
+EMAIL_HOST=smtp.gmail.com
+EMAIL_PORT=587
+EMAIL_SECURE=false
+EMAIL_USER=your_email@gmail.com
+EMAIL_PASSWORD=your_16_character_app_password
+EMAIL_FROM_NAME=PMCKB
+EMAIL_FROM_ADDRESS=your_email@gmail.com
+FRONTEND_URL=http://localhost:5173
+```
+
+> [!IMPORTANT]
+> **Graceful Offline Fallback**: If `EMAIL_USER` or `EMAIL_PASSWORD` is omitted, the application will **NOT crash**. It logs a development warning, marks the database record as `email_status = 'unconfigured'`, and returns a safe response. Team leaders can still copy the invitation link manually or click `[Resend]` once SMTP is configured.
+
+---
+
+### 2. Setting Up Gmail SMTP with Google App Passwords
+
+To send real emails through Gmail in development or testing:
+
+1. **Enable 2-Step Verification**:
+   - Go to your [Google Account Security Settings](https://myaccount.google.com/security).
+   - Under "How you sign in to Google", ensure **2-Step Verification** is turned ON.
+2. **Generate an App Password**:
+   - Go to [Google App Passwords](https://myaccount.google.com/apppasswords).
+   - Give the app password a name (e.g., `PMCKB Dev`).
+   - Click **Create**. Google will generate a **16-character password** (e.g., `abcd efgh ijkl mnop`).
+3. **Configure `backend/.env`**:
+   - Set `EMAIL_USER=your_gmail_address@gmail.com`.
+   - Set `EMAIL_PASSWORD=abcdefghijklmnop` (without spaces).
+   - Keep `EMAIL_PROVIDER=gmail`.
+4. **Security Rule**:
+   - Never commit `backend/.env` to Git or GitHub.
+   - Never use your actual Google account password; only use the dedicated 16-character App Password.
+
+---
+
+### 3. Production Email Configuration
+
+For production environments, any SMTP provider can be used by updating environment variables:
+
+- **SendGrid / Mailgun / Amazon SES / Postmark**:
+  ```env
+  EMAIL_PROVIDER=smtp
+  EMAIL_HOST=smtp.sendgrid.net   # or smtp.mailgun.org, email-smtp.us-east-1.amazonaws.com
+  EMAIL_PORT=587
+  EMAIL_SECURE=false
+  EMAIL_USER=apikey              # provider username / api key
+  EMAIL_PASSWORD=your_api_key    # provider password / secret
+  EMAIL_FROM_NAME=PMCKB
+  EMAIL_FROM_ADDRESS=no-reply@yourdomain.com
+  FRONTEND_URL=https://your-pmckb-domain.com
+  ```
+- **HTTPS Enforcement**: In `production` (`NODE_ENV=production`), `FRONTEND_URL` is strictly required to use `https://`. Insecure `http://` links will be rejected or upgraded to protect invitation tokens.
+
+---
+
+### 4. Invitation Lifecycle & Workflow
+
+```
+Team Leader
+    │
+    ▼
+Team Members Page -> [Invite Member]
+    │
+    ▼
+Enter Email Address -> Click "Send Invitation"
+    │
+    ▼
+Backend:
+1. Verifies requester is Leader
+2. Checks user is not already a member (409)
+3. Checks no duplicate pending invite exists (409)
+4. Checks rate limits (20/hr + 3s throttle)
+5. Generates raw token (32 bytes hex)
+6. Computes SHA-256 hash & stores hash in DB
+7. Dispatches branded HTML email via nodemailer
+    │
+    ▼
+Recipient receives email in Inbox
+    │
+    ▼
+Clicks [Accept Invitation] button
+    │
+    ▼
+Opens PMCKB Acceptance Page: /invitations/accept/<token>
+    │
+    ├─ Unauthenticated ──> Shows [Create Account] / [Sign In] with safe internal redirect
+    │
+    └─ Authenticated ────> Verifies recipient email matches authenticated account (403 if mismatch)
+                           Clicks [Accept Invitation]
+                                │
+                                ▼
+                           Atomic state transition to 'accepted'
+                           User joins team_members with role = 'member'
+```
+
+---
+
+### 5. Resend & Cancellation Controls
+
+- **Resend Invitation**:
+  - Available to Team Leaders for pending or expired invitations.
+  - Automatically generates a new secure token, extends expiration by 7 days, and dispatches a fresh email.
+  - **Rate Limiting Cooldown**: Built-in 60-second cooldown per invitation to prevent accidental double-sending and spam abuse.
+- **Cancel Invitation**:
+  - Leaders can click `[Cancel]` on any pending invitation with a confirmation dialog.
+  - Transitions status atomically to `'cancelled'`.
+  - Cancelled invitations can never be accepted; recipients opening a cancelled link see a clear notification.
+
+---
+
+### 6. Security & Anti-Abuse Hardening
+
+1. **SHA-256 Token Hashing**: Raw invitation tokens are never stored in the database. Only one-way SHA-256 hashes are persisted, ensuring that even in the event of a database breach, invitation tokens cannot be recovered or stolen.
+2. **Atomic State Transitions**: Database transitions use conditional atomic queries (`UPDATE ... WHERE status = 'pending' AND expires_at > NOW()`) inside transactions to guarantee zero race conditions on concurrent accepts, resends, or cancellations.
+3. **Open Redirect Defense**: All redirect query parameters on `/login` and `/register` are strictly sanitized by `sanitizeInternalRedirect()`, blocking external URLs (`https://evil.com`), protocol-relative bypasses (`//evil.com`), `javascript:` schemes, and backslash bypasses.
+4. **Zero-Sensitive Logging**: Operational logging masks recipient emails (`m***@gmail.com`) and strictly excludes raw tokens, passwords, app passwords, and JWTs from server consoles and logs.
+
+---
+
+### 7. Verification & Automated Testing
+
+Run the automated invitation test suite:
+
+```bash
+node scratch/test_email_invitations.js
+```
+
+Covers all 13 core requirements:
+- Leader invitation creation & token hashing
+- Public preview endpoint
+- Duplicate pending invite prevention (409)
+- Existing member invite prevention (409)
+- Recipient registration & acceptance
+- Replay / duplicate accept prevention
+- Cancel invitation flow & denial
+- Wrong user email acceptance denial (403)
+- Non-leader permission denial (403)
+- Cross-team privacy enforcement
+- Resend cooldown (429) & renewal of expired invitations
+- Open redirect sanitization
+- Email delivery status tracking (`email_status`, `email_sent_at`, `last_email_error`)
+
+---
+
 ## 📜 License
 MIT License • Built for Internship Showcase & Full-Stack Portfolio.
+

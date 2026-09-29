@@ -8,34 +8,36 @@ import {
   X,
   ArrowRight,
   Clock,
+  Megaphone,
 } from 'lucide-react';
 import { useNotification } from '../../context/NotificationContext';
 
 export default function NotificationToastContainer() {
-  const { toasts, dismissToast, markAsRead } = useNotification();
+  const { activeToasts, dismissToast, viewNotification } = useNotification();
   const navigate = useNavigate();
 
-  if (!toasts || toasts.length === 0) return null;
+  if (!activeToasts || activeToasts.length === 0) return null;
 
   return (
     <div
       aria-live="polite"
       aria-atomic="true"
-      className="fixed top-4 right-4 z-50 flex flex-col gap-3 pointer-events-none w-full max-w-[calc(100vw-2rem)] sm:max-w-[380px]"
+      className="fixed top-4 right-4 z-50 flex flex-col gap-3 pointer-events-none w-full max-w-[calc(100vw-2rem)] sm:max-w-[400px] max-h-[calc(100vh-2rem)] overflow-y-auto pr-1 sm:pr-2"
     >
-      {toasts.map((toast) => {
+      {activeToasts.map((toast) => {
         const notif = toast.notification;
+        const isAnnouncement =
+          notif.type === 'team_announcement' || notif.reference_type === 'announcement';
         const isMeeting = notif.reference_type === 'meeting';
         const isCalendar = notif.reference_type === 'calendar_event';
 
         const handleView = (e) => {
           e.stopPropagation();
-          dismissToast(toast.id);
-          if (notif.id) {
-            markAsRead(notif.id);
-          }
+          viewNotification(notif);
 
-          if (isMeeting && notif.reference_id) {
+          if (isAnnouncement) {
+            navigate('/announcements');
+          } else if (isMeeting && notif.reference_id) {
             navigate(`/meetings/${notif.reference_id}`);
           } else if (isCalendar) {
             navigate('/calendar');
@@ -46,7 +48,7 @@ export default function NotificationToastContainer() {
 
         const handleClose = (e) => {
           e.stopPropagation();
-          dismissToast(toast.id);
+          dismissToast(toast.id, notif?.id);
         };
 
         return (
@@ -60,14 +62,18 @@ export default function NotificationToastContainer() {
               <div className="flex items-center gap-2.5 min-w-0">
                 <div
                   className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 border ${
-                    isMeeting
+                    isAnnouncement
+                      ? 'bg-amber-50 text-amber-600 border-amber-200'
+                      : isMeeting
                       ? 'bg-purple-50 text-purple-600 border-purple-200'
                       : isCalendar
                       ? 'bg-indigo-50 text-indigo-600 border-indigo-200'
                       : 'bg-amber-50 text-amber-600 border-amber-200'
                   }`}
                 >
-                  {isMeeting ? (
+                  {isAnnouncement ? (
+                    <Megaphone className="w-4 h-4" />
+                  ) : isMeeting ? (
                     <Users className="w-4 h-4" />
                   ) : isCalendar ? (
                     <Calendar className="w-4 h-4" />
@@ -79,20 +85,21 @@ export default function NotificationToastContainer() {
                 <div className="min-w-0">
                   <div className="flex items-center gap-1.5">
                     <span className="text-xs font-bold text-slate-900 truncate">
-                      {notif.title || 'Reminder Alert'}
+                      {notif.title || (isAnnouncement ? 'New Team Announcement' : 'Reminder Alert')}
                     </span>
                     <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 shrink-0" />
                   </div>
                   <span className="text-[10px] text-slate-400 block font-medium">
-                    Just now
+                    {isAnnouncement ? 'Team Announcement' : 'Active Reminder'}
                   </span>
                 </div>
               </div>
 
-              {/* Close Button */}
+              {/* Close Button (Dismiss/X: dismissed only, remains in notification center) */}
               <button
                 onClick={handleClose}
-                aria-label="Close notification"
+                aria-label="Dismiss notification"
+                title="Dismiss toast"
                 className="p-1 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
               >
                 <X className="w-4 h-4" />
@@ -109,19 +116,23 @@ export default function NotificationToastContainer() {
             {/* Action Footer */}
             <div className="mt-3 pl-10.5 flex items-center justify-between pt-2 border-t border-slate-100">
               <span className="text-[10px] text-slate-400 font-medium">
-                {isMeeting ? 'Meeting' : isCalendar ? 'Calendar Event' : 'Scheduled Alert'}
+                {isAnnouncement
+                  ? 'Team Announcement'
+                  : isMeeting
+                  ? 'Meeting'
+                  : isCalendar
+                  ? 'Calendar Event'
+                  : 'Scheduled Alert'}
               </span>
 
               <div className="flex items-center gap-2">
-                {(isMeeting || isCalendar) && (
-                  <button
-                    onClick={handleView}
-                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold border border-indigo-200 shadow-2xs transition-colors cursor-pointer"
-                  >
-                    <span>View</span>
-                    <ArrowRight className="w-3 h-3" />
-                  </button>
-                )}
+                <button
+                  onClick={handleView}
+                  className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold border border-indigo-200 shadow-2xs transition-colors cursor-pointer"
+                >
+                  <span>{isAnnouncement ? 'View Announcement' : 'View'}</span>
+                  <ArrowRight className="w-3 h-3" />
+                </button>
                 <button
                   onClick={handleClose}
                   className="px-2.5 py-1.5 rounded-xl text-xs font-medium text-slate-500 hover:text-slate-800 hover:bg-slate-100 transition-colors cursor-pointer"

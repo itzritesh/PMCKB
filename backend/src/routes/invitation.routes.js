@@ -13,4 +13,9 @@ router.get('/', authenticateJwt, InvitationController.getUserInvitations);
 router.post('/:token/accept', authenticateJwt, InvitationController.acceptInvitation);
 router.post('/:token/reject', authenticateJwt, InvitationController.rejectInvitation);
 
+// Leader actions: Cancel and Resend invitations (require user authentication)
+router.patch('/:id/cancel', authenticateJwt, InvitationController.cancelInvitation);
+router.post('/:id/resend', authenticateJwt, InvitationController.resendInvitation);
+
 module.exports = router;
+

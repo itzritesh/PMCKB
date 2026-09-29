@@ -20,6 +20,9 @@ import {
   Copy,
   Check,
   Clock,
+  RefreshCw,
+  Ban,
+  Send,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useTeam } from '../context/TeamContext';
@@ -54,6 +57,17 @@ export default function TeamDetailsPage() {
   const [createdInvite, setCreatedInvite] = useState(null);
   const [copiedLink, setCopiedLink] = useState(false);
   const [workspaceInvites, setWorkspaceInvites] = useState([]);
+  const [resendingId, setResendingId] = useState(null);
+  const [resendCooldowns, setResendCooldowns] = useState({});
+  const [invitationToCancel, setInvitationToCancel] = useState(null);
+  const [cancelLoading, setCancelLoading] = useState(false);
+
+  // 1-second ticker to update resend cooldown countdowns dynamically
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const timer = setInterval(() => setTick((t) => t + 1), 1000);
+    return () => clearInterval(timer);
+  }, []);
 
   const [addMemberForm, setAddMemberForm] = useState({
     email: '',
@@ -136,7 +150,7 @@ export default function TeamDetailsPage() {
     setTimeout(() => setSuccessMsg(''), 4000);
   };
 
-  // Invite Member (Phase 6)
+  // Invite Member with Real Email Delivery
   const handleSendInvitation = async (e) => {
     e.preventDefault();
     setInviteError('');
@@ -149,21 +163,59 @@ export default function TeamDetailsPage() {
     try {
       setInviteLoading(true);
       const res = await invitationService.createInvitation(id, inviteEmail.trim());
-      setCreatedInvite(res.data?.invitation);
+      setCreatedInvite({
+        ...res.data?.invitation,
+        invitationLink: res.data?.invitationLink,
+        emailSent: res.data?.emailSent,
+        emailError: res.data?.emailError,
+        message: res.message,
+      });
       await loadWorkspaceInvites();
-      showNotification('Invitation created successfully.');
+      showNotification(res.message || 'Invitation created successfully.');
     } catch (err) {
-      setInviteError(err.response?.data?.message || 'Failed to create invitation.');
+      setInviteError(err.message || err.response?.data?.message || 'Failed to create invitation.');
     } finally {
       setInviteLoading(false);
     }
   };
 
-  const handleCopyInviteLink = (token) => {
-    const link = `${window.location.origin}/invite/${token}`;
+  const handleCopyInviteLink = (linkOrToken) => {
+    if (!linkOrToken) return;
+    const link = linkOrToken.startsWith('/')
+      ? `${window.location.origin}${linkOrToken}`
+      : `${window.location.origin}/invitations/accept/${linkOrToken}`;
     navigator.clipboard.writeText(link);
     setCopiedLink(true);
     setTimeout(() => setCopiedLink(false), 2500);
+  };
+
+  const handleResendInvitation = async (inv) => {
+    try {
+      setResendingId(inv.id);
+      const res = await invitationService.resendInvitation(inv.id);
+      showNotification(res.message || `Invitation resent to ${inv.email}`);
+      setResendCooldowns((prev) => ({ ...prev, [inv.id]: Date.now() + 60000 }));
+      await loadWorkspaceInvites();
+    } catch (err) {
+      showNotification(err.message || err.response?.data?.message || 'Failed to resend invitation.');
+    } finally {
+      setResendingId(null);
+    }
+  };
+
+  const handleConfirmCancelInvitation = async () => {
+    if (!invitationToCancel) return;
+    try {
+      setCancelLoading(true);
+      await invitationService.cancelInvitation(invitationToCancel.id);
+      showNotification(`Invitation for ${invitationToCancel.email} has been cancelled.`);
+      setInvitationToCancel(null);
+      await loadWorkspaceInvites();
+    } catch (err) {
+      showNotification(err.message || err.response?.data?.message || 'Failed to cancel invitation.');
+    } finally {
+      setCancelLoading(false);
+    }
   };
 
   // Add Member
@@ -564,13 +616,13 @@ export default function TeamDetailsPage() {
         <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-2xs space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h2 className="text-base font-bold text-slate-900">Pending Workspace Invitations</h2>
+              <h2 className="text-base font-bold text-slate-900">Workspace Invitations</h2>
               <p className="text-xs text-slate-500 mt-0.5">
-                Invitations issued for this workspace. Recipients can accept using their secure link.
+                Track invitation status, email delivery, and manage active workspace invitations.
               </p>
             </div>
             <span className="px-2.5 py-1 rounded-lg text-xs font-semibold bg-indigo-50 text-indigo-700 border border-indigo-100">
-              {workspaceInvites.filter((i) => i.status === 'pending').length} active
+              {workspaceInvites.filter((i) => i.status === 'pending').length} active pending
             </span>
           </div>
 
@@ -580,49 +632,109 @@ export default function TeamDetailsPage() {
                 <tr>
                   <th className="py-2.5 px-4">Invited Email</th>
                   <th className="py-2.5 px-4">Invited By</th>
-                  <th className="py-2.5 px-4">Status</th>
+                  <th className="py-2.5 px-4">Invitation Status</th>
+                  <th className="py-2.5 px-4">Email Delivery</th>
                   <th className="py-2.5 px-4">Expires</th>
                   <th className="py-2.5 px-4 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {workspaceInvites.map((inv) => (
-                  <tr key={inv.id} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="py-3 px-4 font-semibold text-slate-900 font-mono text-xs">
-                      {inv.email}
-                    </td>
-                    <td className="py-3 px-4 text-slate-600">
-                      {inv.invited_by_name}
-                    </td>
-                    <td className="py-3 px-4">
-                      <span
-                        className={`inline-block px-2 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider ${
-                          inv.status === 'pending'
-                            ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                            : inv.status === 'accepted'
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                            : 'bg-slate-100 text-slate-600'
-                        }`}
-                      >
-                        {inv.status}
-                      </span>
-                    </td>
-                    <td className="py-3 px-4 text-slate-500">
-                      {new Date(inv.expires_at).toLocaleDateString()}
-                    </td>
-                    <td className="py-3 px-4 text-right">
-                      {inv.status === 'pending' && (
-                        <button
-                          onClick={() => handleCopyInviteLink(inv.token)}
-                          className="inline-flex items-center gap-1 text-xs text-indigo-600 hover:text-indigo-800 font-semibold cursor-pointer"
+                {workspaceInvites.map((inv) => {
+                  const cooldownUntil = resendCooldowns[inv.id];
+                  const secondsLeft = cooldownUntil
+                    ? Math.max(0, Math.ceil((cooldownUntil - Date.now()) / 1000))
+                    : 0;
+                  const isResending = resendingId === inv.id;
+                  const isPending = inv.status === 'pending';
+                  const isExpired = inv.status === 'expired' || new Date(inv.expires_at) <= new Date();
+
+                  return (
+                    <tr key={inv.id} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="py-3 px-4 font-semibold text-slate-900 font-mono text-xs">
+                        {inv.email}
+                      </td>
+                      <td className="py-3 px-4 text-slate-600">
+                        {inv.invited_by_name}
+                      </td>
+                      <td className="py-3 px-4">
+                        <span
+                          className={`inline-block px-2.5 py-0.5 rounded-md text-[10px] font-bold uppercase tracking-wider border ${
+                            inv.status === 'pending'
+                              ? 'bg-amber-50 text-amber-700 border-amber-200'
+                              : inv.status === 'accepted'
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : inv.status === 'rejected'
+                              ? 'bg-slate-100 text-slate-600 border-slate-200'
+                              : inv.status === 'cancelled'
+                              ? 'bg-zinc-100 text-zinc-600 border-zinc-200'
+                              : 'bg-rose-50 text-rose-700 border-rose-200'
+                          }`}
                         >
-                          <Copy className="w-3 h-3" />
-                          <span>Copy Link</span>
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                          {inv.status}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4">
+                        <span
+                          className={`inline-block px-2.5 py-0.5 rounded-md text-[10px] font-medium border ${
+                            inv.email_status === 'sent'
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : inv.email_status === 'failed'
+                              ? 'bg-rose-50 text-rose-700 border-rose-200'
+                              : inv.email_status === 'unconfigured'
+                              ? 'bg-slate-100 text-slate-500 border-slate-200'
+                              : 'bg-amber-50 text-amber-700 border-amber-200'
+                          }`}
+                          title={inv.last_email_error || (inv.email_status === 'sent' ? 'Delivered successfully' : '')}
+                        >
+                          {inv.email_status === 'sent'
+                            ? 'Delivered'
+                            : inv.email_status === 'failed'
+                            ? 'Failed'
+                            : inv.email_status === 'unconfigured'
+                            ? 'Unconfigured'
+                            : 'Queued'}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4 text-slate-500">
+                        {new Date(inv.expires_at).toLocaleDateString()}
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex items-center justify-end gap-2">
+                          {(isPending || isExpired) && (
+                            <button
+                              onClick={() => handleResendInvitation(inv)}
+                              disabled={secondsLeft > 0 || isResending}
+                              title={secondsLeft > 0 ? `Wait ${secondsLeft}s to resend` : 'Resend invitation email'}
+                              className={`inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg border transition-all cursor-pointer ${
+                                secondsLeft > 0 || isResending
+                                  ? 'bg-slate-50 text-slate-400 border-slate-200 cursor-not-allowed'
+                                  : 'bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border-indigo-200'
+                              }`}
+                            >
+                              <RefreshCw className={`w-3 h-3 ${isResending ? 'animate-spin' : ''}`} />
+                              <span>{secondsLeft > 0 ? `Resend (${secondsLeft}s)` : isResending ? 'Resending...' : 'Resend'}</span>
+                            </button>
+                          )}
+
+                          {isPending && (
+                            <button
+                              onClick={() => setInvitationToCancel(inv)}
+                              title="Cancel invitation"
+                              className="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-lg border bg-rose-50 hover:bg-rose-100 text-rose-700 border-rose-200 transition-colors cursor-pointer"
+                            >
+                              <Ban className="w-3 h-3" />
+                              <span>Cancel</span>
+                            </button>
+                          )}
+
+                          {!isPending && !isExpired && (
+                            <span className="text-slate-400 text-xs">—</span>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
@@ -703,40 +815,61 @@ export default function TeamDetailsPage() {
                     disabled={inviteLoading}
                     className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer disabled:opacity-50"
                   >
-                    {inviteLoading && (
-                      <div className="animate-spin w-3 h-3 border-2 border-white border-t-transparent rounded-full" />
+                    {inviteLoading ? (
+                      <>
+                        <div className="animate-spin w-3 h-3 border-2 border-white border-t-transparent rounded-full" />
+                        <span>Sending...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Send className="w-3.5 h-3.5" />
+                        <span>Send Invitation</span>
+                      </>
                     )}
-                    <span>Send Invitation</span>
                   </button>
                 </div>
               </form>
             ) : (
               <div className="p-6 space-y-5">
-                <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-center space-y-2">
-                  <CheckCircle2 className="w-8 h-8 text-emerald-600 mx-auto" />
-                  <h4 className="text-sm font-bold text-emerald-900">
-                    Invitation created successfully.
+                <div
+                  className={`p-4 rounded-2xl text-center space-y-2 border ${
+                    createdInvite.emailSent
+                      ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                      : 'bg-amber-50 border-amber-200 text-amber-900'
+                  }`}
+                >
+                  <CheckCircle2
+                    className={`w-8 h-8 mx-auto ${
+                      createdInvite.emailSent ? 'text-emerald-600' : 'text-amber-600'
+                    }`}
+                  />
+                  <h4 className="text-sm font-bold">
+                    {createdInvite.emailSent
+                      ? `Invitation sent successfully to ${createdInvite.email}`
+                      : 'Invitation created (email delivery unconfigured/offline)'}
                   </h4>
-                  <p className="text-xs text-emerald-700">
-                    Share this secure link with{' '}
-                    <span className="font-semibold">{createdInvite.email}</span> to join:
+                  <p className={`text-xs ${createdInvite.emailSent ? 'text-emerald-700' : 'text-amber-700'}`}>
+                    {createdInvite.emailSent
+                      ? `A real email invitation has been dispatched to ${createdInvite.email}. They can click "Accept Invitation" in their inbox to join.`
+                      : (createdInvite.emailError || 'Email service is not configured.') +
+                        ' You can copy the secure link below to share with the recipient:'}
                   </p>
                 </div>
 
                 <div className="space-y-2">
                   <label className="block text-xs font-semibold text-slate-700">
-                    Invitation Link
+                    Invitation Link (One-Time Secure URL)
                   </label>
                   <div className="flex items-center gap-2">
                     <input
                       type="text"
                       readOnly
-                      value={`${window.location.origin}/invite/${createdInvite.token}`}
+                      value={`${window.location.origin}${createdInvite.invitationLink || `/invitations/accept/${createdInvite.token}`}`}
                       className="flex-1 px-3 py-2 text-xs font-mono bg-slate-50 border border-slate-200 rounded-xl text-slate-700 select-all"
                     />
                     <button
                       type="button"
-                      onClick={() => handleCopyInviteLink(createdInvite.token)}
+                      onClick={() => handleCopyInviteLink(createdInvite.invitationLink || createdInvite.token)}
                       className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all cursor-pointer shadow-2xs shrink-0 ${
                         copiedLink
                           ? 'bg-emerald-600 text-white'
@@ -751,7 +884,7 @@ export default function TeamDetailsPage() {
                       ) : (
                         <>
                           <Copy className="w-3.5 h-3.5" />
-                          <span>Copy Invitation Link</span>
+                          <span>Copy Link</span>
                         </>
                       )}
                     </button>
@@ -1071,6 +1204,49 @@ export default function TeamDetailsPage() {
                     <div className="animate-spin w-3 h-3 border-2 border-white border-t-transparent rounded-full" />
                   )}
                   <span>Delete Workspace</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 5: Cancel Invitation Confirmation Modal */}
+      {invitationToCancel && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full border border-slate-200 overflow-hidden animate-in zoom-in-95 duration-200">
+            <div className="p-6 space-y-4">
+              <div className="w-12 h-12 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
+                <Ban className="w-6 h-6" />
+              </div>
+
+              <div className="text-center">
+                <h3 className="text-base font-bold text-slate-900">Cancel Invitation?</h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  Are you sure you want to cancel the invitation sent to{' '}
+                  <strong className="text-slate-800">{invitationToCancel.email}</strong>? The invitation link will immediately become invalid.
+                </p>
+              </div>
+
+              <div className="pt-3 border-t border-slate-100 flex items-center justify-center gap-2.5">
+                <button
+                  type="button"
+                  disabled={cancelLoading}
+                  onClick={() => setInvitationToCancel(null)}
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-slate-600 hover:bg-slate-100 transition-colors cursor-pointer"
+                >
+                  Keep Invitation
+                </button>
+                <button
+                  type="button"
+                  disabled={cancelLoading}
+                  onClick={handleConfirmCancelInvitation}
+                  className="inline-flex items-center gap-2 px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                >
+                  {cancelLoading && (
+                    <div className="animate-spin w-3 h-3 border-2 border-white border-t-transparent rounded-full" />
+                  )}
+                  <span>Cancel Invitation</span>
                 </button>
               </div>
             </div>

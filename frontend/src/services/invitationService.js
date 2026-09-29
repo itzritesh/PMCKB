@@ -54,6 +54,24 @@ export const invitationService = {
     const response = await api.post(`/api/invitations/${token}/reject`);
     return response.data;
   },
+
+  /**
+   * Leader cancels a pending invitation
+   * @param {number|string} invitationId
+   */
+  async cancelInvitation(invitationId) {
+    const response = await api.patch(`/api/invitations/${invitationId}/cancel`);
+    return response.data;
+  },
+
+  /**
+   * Leader resends a pending or expired invitation
+   * @param {number|string} invitationId
+   */
+  async resendInvitation(invitationId) {
+    const response = await api.post(`/api/invitations/${invitationId}/resend`);
+    return response.data;
+  },
 };
 
 export default invitationService;
